@@ -1,0 +1,13 @@
+ROC-AUC: 0.992
+Brier : 0.018
+Confusion
+[[95406, 1342], [1109, 9363]]
+
+              precision    recall  f1-score   support
+
+           0      0.989     0.986     0.987     96748
+           1      0.875     0.894     0.884     10472
+
+    accuracy                          0.977    107220
+   macro avg      0.932     0.940     0.936    107220
+weighted avg      0.977     0.977     0.977    107220
