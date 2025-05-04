@@ -11,7 +11,7 @@ data:
   sales_files: # Lista de archivos de ventas a combinar para DVC pipeline
     - ventas_completo.csv
     - ventas_backtesting_exploted.csv
-    - ventas_backtesting_new.csv
+    #- ventas_backtesting_new.csv
   backtesting_file: ventas_backtesting_new.csv # Cambiar siempre por un nuevo archivo
 
 load_data: # Etapa DVC 'load'
@@ -37,9 +37,9 @@ load_data: # Etapa DVC 'load'
 
 preprocess: # Etapa DVC 'preprocess'
   domicilio_filter_values: [True, 'True', 'true']
-  min_purchase_count: 5
-  max_median_days_between: 30
-  max_std_days_between: 5
+  min_purchase_count: 10
+  max_median_days_between: 35
+  max_std_days_between: 3
   min_purchase_days_filter: 10
   min_products_filter: 5
   daily_output_file: daily.parquet # Salida principal de esta etapa
@@ -86,8 +86,8 @@ evaluate: # Etapa DVC 'evaluate'
   shap_sample_size: 1000
 
 backtesting: # Etapa DVC 'backtest'
-  backtest_start_date: '2025-05-02'
-  backtest_end_date: '2025-05-06'
+  backtest_start_date: '2025-04-22'
+  backtest_end_date: '2025-04-30'
 
 # --- Sección para el Recomendador Item-Item (Scripts Manuales) ---
 recommendations:

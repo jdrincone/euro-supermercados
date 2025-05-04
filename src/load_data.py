@@ -3,9 +3,10 @@ import pandas as pd
 import yaml
 from pathlib import Path
 import argparse
+from datetime import timedelta
 
 def load_and_clean(config_path):
-    """Carga los datos crudos y realiza limpieza inicial."""
+    """Carga, limpia y filtra las ventas de los últimos 6 meses."""
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
@@ -69,12 +70,19 @@ def load_and_clean(config_path):
     df = df.dropna(subset=['date_sale'])
     df['date_sale'] = df['date_sale'].dt.normalize()
 
+    # --- Filtrar ventas por los últimos 6 meses ---
+    print("Filtrando ventas de los últimos 6 meses...")
+    max_date = df['date_sale'].max()
+    six_months_ago = max_date - timedelta(days=6 * 30)  # Aproximación de 6 meses
+    df_filtered = df[df['date_sale'] >= six_months_ago].copy()
+    print(f"Filas tras filtrar por los últimos 6 meses (desde {six_months_ago} hasta {max_date}): {len(df_filtered)}")
+
     # Seleccionar y guardar columnas relevantes
     output_cols = config['load_data']['output_columns']
-    df_out = df[output_cols].copy()
+    df_out = df_filtered[output_cols].copy()
     output_file = processed_path / config['load_data']['output_file']
     df_out.to_parquet(output_file, index=False)
-    print(f"Datos iniciales guardados en: {output_file}")
+    print(f"Datos iniciales (últimos 6 meses) guardados en: {output_file}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -3,9 +3,13 @@ import pandas as pd
 import yaml
 from pathlib import Path
 import argparse
+from datetime import datetime, timedelta
+
+from fastjsonschema.ref_resolver import normalize
+
 
 def preprocess_sales(config_path):
-    """Filtra ventas según reglas de negocio y agrega diariamente."""
+    """Filtra ventas de clientes activos en los últimos 3 meses con patrones de compra y agrega indicador de domicilio."""
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
@@ -18,17 +22,23 @@ def preprocess_sales(config_path):
     df = pd.read_parquet(input_file)
     print(f"Datos cargados desde: {input_file}, Filas: {len(df)}")
 
-    # --- Filtrado por Domicilio ---
-    print("Filtrando por clientes con historial de domicilio...")
-    domicilio_statuses = preprocess_params['domicilio_filter_values']
+    # --- Identificar Clientes con Historial de Domicilio ---
+    print("Identificando clientes con historial de domicilio...")
+    domicilio_statuses = preprocess_params.get('domicilio_filter_values', [])
     client_dom = df[df["domicilio_status"].isin(domicilio_statuses)]["id_client"].unique()
     print(f"Clientes únicos con al menos 1 compra a domicilio: {len(client_dom)}")
-    df_filtered = df[df["id_client"].isin(client_dom)].copy()
-    print(f"Filas tras filtrar por clientes con domicilio: {len(df_filtered)}")
+
+    # --- Filtrado por Actividad Reciente ---
+    print("Filtrando clientes con compras en los últimos 3 meses...")
+    three_months_ago = datetime.now().date() - timedelta(days=90)
+    recent_purchases = df[df["date_sale"].dt.date >= three_months_ago]["id_client"].unique()
+    print(f"Clientes únicos con compras en los últimos 3 meses: {len(recent_purchases)}")
+    df_recent = df[df["id_client"].isin(recent_purchases)].copy()
+    print(f"Filas tras filtrar por actividad reciente: {len(df_recent)}")
 
     # --- Filtrado por Patrones de Compra ---
     print("Calculando y filtrando por patrones de compra...")
-    daily_purchases = df_filtered.drop_duplicates(subset=['id_client', 'date_sale'])[['id_client', 'date_sale']]
+    daily_purchases = df_recent.drop_duplicates(subset=['id_client', 'date_sale'])[['id_client', 'date_sale']]
     daily_purchases = daily_purchases.sort_values(['id_client', 'date_sale'])
     daily_purchases['days_between_purchases'] = daily_purchases.groupby('id_client')['date_sale'].diff().dt.days
     patterns = daily_purchases.groupby('id_client').agg(
@@ -51,33 +61,12 @@ def preprocess_sales(config_path):
     patterns_filtered = patterns_filtered[patterns_filtered["std_days_between"] < max_std_days]
     print(f"Clientes con std < {max_std_days} días entre compras: {len(patterns_filtered)}")
 
-    df_filtered_cut = df_filtered[df_filtered["id_client"].isin(patterns_filtered["id_client"])]
-    print(f"Filas tras filtrar por patrones: {len(df_filtered_cut)}")
-
-    # --- Filtrado por actividad general (opcional, si se necesita refinar más) ---
-    print("Calculando y filtrando por actividad general...")
-    resumen = (df_filtered_cut
-               .groupby('id_client')
-               .agg(num_fechas=('date_sale', 'nunique'),
-                    num_productos=('product', 'nunique'))
-               .reset_index())
-
-    min_purchase_days_filter = preprocess_params['min_purchase_days_filter']
-    min_products_filter = preprocess_params['min_products_filter']
-
-    clientes_objetivo = resumen[
-        (resumen['num_fechas'] > min_purchase_days_filter) &
-        (resumen['num_productos'] > min_products_filter)
-    ]
-    print(f"Clientes cumpliendo filtros de actividad: {len(clientes_objetivo)}")
-
-    df_final = df_filtered_cut[df_filtered_cut["id_client"].isin(clientes_objetivo["id_client"])]
-    print(f"Filas finales tras todos los filtros: {len(df_final)}")
-
+    df_filtered_pattern = df_recent[df_recent["id_client"].isin(patterns_filtered["id_client"])]
+    print(f"Filas tras filtrar por patrones en clientes recientes: {len(df_filtered_pattern)}")
 
     # --- Agregación Diaria por Producto ---
     print("Agregando ventas diarias por producto...")
-    df_final = df_final.rename(columns={
+    df_final = df_filtered_pattern.rename(columns={
         'invoice_value_with_discount_and_without_iva': 'amount_paid',
         'amount': 'quantity'
     })
@@ -95,7 +84,7 @@ def preprocess_sales(config_path):
 
 
     # --- Agregación Diaria por Cliente (para featurize) ---
-    print("Agregando ventas diarias por cliente...")
+    print("Agregando ventas diarias por cliente y creando feature de domicilio...")
     daily = (df_agg.groupby(['id_client', 'date_sale'], as_index=False)
              .agg(qty_tot=('quantity', 'sum'),
                   amount_tot=('amount_paid', 'sum'),
@@ -103,15 +92,16 @@ def preprocess_sales(config_path):
              .assign(purchased=1)
              .rename(columns={'id_client': 'client', 'date_sale': 'date'}))
 
+    # Crear la columna 'has_domicilio'
+    daily['has_domicilio'] = daily['client'].apply(lambda x: 1 if x in client_dom else 0)
+    print("Columna 'has_domicilio' creada.")
+    print("DOMICILIOS")
+    print(daily['has_domicilio'].value_counts(normalize=True))
+
     # Guardar resultados
     daily_output_file = processed_path / config['preprocess']['daily_output_file']
     daily.to_parquet(daily_output_file, index=False)
     print(f"Datos diarios agregados guardados en: {daily_output_file}")
-
-    # (Opcional) Guardar las ventas filtradas si se necesitan después
-    # filtered_sales_output_file = processed_path / 'filtered_sales.parquet'
-    # df_agg.to_parquet(filtered_sales_output_file, index=False)
-    # print(f"Ventas filtradas y agregadas por producto guardadas en: {filtered_sales_output_file}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
