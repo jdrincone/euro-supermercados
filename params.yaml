@@ -1,0 +1,121 @@
+base:
+  random_state: 42
+
+data:
+  base_path: data
+  raw_folder: raw
+  processed_folder: processed
+  # Archivos para pipeline DVC (Predicción)
+  products_file: productos.csv
+  terceros_file: terceros_completo.csv
+  sales_files: # Lista de archivos de ventas a combinar para DVC pipeline
+    - ventas_completo.csv
+    - ventas_backtesting_exploted.csv
+  backtesting_file: ventas_backtesting_new.csv # Archivo para etapa backtest DVC
+
+load_data: # Etapa DVC 'load'
+  sales_columns:
+    - date_sale
+    - id_point_sale
+    - identification_doct
+    - product
+    - invoice_value_with_discount_and_without_iva
+    - domicilio_status
+    - amount
+  sales_dtype:
+    identification_doct: str
+    product: str
+  output_columns:
+    - date_sale
+    - id_client
+    - product
+    - amount
+    - invoice_value_with_discount_and_without_iva
+    - domicilio_status
+  output_file: initial_sales_clean.parquet # Salida intermedia
+
+preprocess: # Etapa DVC 'preprocess'
+  domicilio_filter_values: [True, 'True', 'true']
+  min_purchase_count: 5
+  max_median_days_between: 30
+  max_std_days_between: 5
+  min_purchase_days_filter: 10
+  min_products_filter: 5
+  daily_output_file: daily.parquet # Salida principal de esta etapa
+  recommendation_output_file: filtered_agg_sales_for_rec.parquet # Salida para recomendación
+
+featurize: # Etapa DVC 'featurize'
+  future_days_offset: 10
+  quincena_days: [28, 29, 30, 31, 1, 2, 13, 14, 15, 16]
+  recency_fillna_days: 9999
+  rolling_windows: [1, 3, 7, 15, 30]
+  output_file: calendar_features.parquet # Salida principal
+
+train: # Etapa DVC 'train'
+  split_days_validation: 30
+  features:
+    - dow
+    - dom
+    - month
+    - is_weekend
+    - is_quincena
+    - days_since_last
+    - cnt_1d
+    - cnt_3d
+    - cnt_7d
+    - cnt_15d
+    - cnt_30d
+  target: purchased
+  logistic_regression:
+    solver: saga
+    max_iter: 100
+    tol: 0.001
+    C: 0.1
+    class_weight: balanced
+
+model: # Parámetros relacionados al modelo de predicción DVC
+  model_dir: models
+  model_name: model.joblib
+  calibrated_model_name: calibrated_model.joblib
+
+evaluate: # Etapa DVC 'evaluate'
+  calibration_method: sigmoid
+  calibration_bins: 10
+  evaluation_threshold: 0.50 # Umbral para predicción y backtesting
+  shap_sample_size: 1000
+
+backtesting: # Etapa DVC 'backtest'
+  backtest_start_date: '2025-04-22'
+  backtest_end_date: '2025-04-30'
+
+# --- Sección para el Recomendador Item-Item (Scripts Manuales) ---
+recommendations:
+  num_recommendations: 5                # Número de recs a generar/guardar por cliente
+  output_folder: recommendations        # Carpeta para guardar las recs finales/precalculadas
+  model_folder: recommendation_model_item_item # Carpeta para artefactos del modelo CF
+
+  # --- Archivos de Entrada para Entrenamiento del Recomendador (train_recommender.py) ---
+  transaction_data_processed_file: filtered_agg_sales_for_rec.parquet
+  # El catálogo de productos se toma de data.products_file definido arriba
+
+  # --- Nombres de Archivos para Artefactos Guardados (dentro de model_folder) ---
+  similarity_matrix_file: item_similarity.npz  # Guardaremos como NPZ (disperso)
+  mappings_file: mappings.pkl                  # Diccionarios de mapeo
+  user_item_matrix_file: sparse_user_item.npz  # Matriz User-Item dispersa
+
+  # --- Nombre de Archivo para Recomendaciones Precalculadas (dentro de output_folder) ---
+  precomputed_recs_file: precomputed_item_item_recs.parquet
+# ------------------------------------------------------------------
+
+reports: # Salidas de etapas DVC 'evaluate' y 'backtest'
+  reports_dir: reports
+  # Salidas de 'evaluate'
+  metrics_file: metrics.json
+  base_class_report_file: classification_report_base.txt
+  calibrated_class_report_file: classification_report_calibrated.txt
+  plots_dir: plots
+  calibration_plot: calibration_curve.png
+  importance_plot: feature_importance.png
+  shap_summary_plot: shap_summary.png
+  # Salida de 'backtest'
+  backtesting_metrics_file: backtesting_metrics.csv

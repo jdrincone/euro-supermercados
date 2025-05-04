@@ -1,0 +1,331 @@
+schema: '2.0'
+stages:
+  load:
+    cmd: python3 src/load_data.py --config params.yaml
+    deps:
+    - path: data/raw/productos.csv
+      hash: md5
+      md5: 4ec42d7cc4443a493bc143f386477dfa
+      size: 5759232
+    - path: data/raw/terceros_completo.csv
+      hash: md5
+      md5: 7fbba33ebd635307953e1a5df78d1407
+      size: 86149861
+    - path: data/raw/ventas_backtesting_exploted.csv
+      hash: md5
+      md5: 221b2c34d2c074590486aba39ab55bea
+      size: 130739052
+    - path: data/raw/ventas_completo.csv
+      hash: md5
+      md5: 8cae1e50cd5ffb37c843ccaf8e302a19
+      size: 11497795694
+    - path: src/load_data.py
+      hash: md5
+      md5: 7e09acc16cc279e5f32bdbc9beed6229
+      size: 3156
+    params:
+      params.yaml:
+        data.base_path: data
+        data.processed_folder: processed
+        data.products_file: productos.csv
+        data.raw_folder: raw
+        data.sales_files:
+        - ventas_completo.csv
+        - ventas_backtesting_exploted.csv
+        data.terceros_file: terceros_completo.csv
+        load_data:
+          sales_columns:
+          - date_sale
+          - id_point_sale
+          - identification_doct
+          - product
+          - invoice_value_with_discount_and_without_iva
+          - domicilio_status
+          - amount
+          sales_dtype:
+            identification_doct: str
+            product: str
+          output_columns:
+          - date_sale
+          - id_client
+          - product
+          - amount
+          - invoice_value_with_discount_and_without_iva
+          - domicilio_status
+          output_file: initial_sales_clean.parquet
+    outs:
+    - path: data/processed/initial_sales_clean.parquet
+      hash: md5
+      md5: a1bea2b63c40fd0789ff199be9b09bd5
+      size: 252493939
+  preprocess:
+    cmd: python3 src/preprocess.py --config params.yaml
+    deps:
+    - path: data/processed/initial_sales_clean.parquet
+      hash: md5
+      md5: a1bea2b63c40fd0789ff199be9b09bd5
+      size: 252493939
+    - path: src/preprocess.py
+      hash: md5
+      md5: 78fc65cef7e75812a635ab62b8f37398
+      size: 5810
+    params:
+      params.yaml:
+        data.base_path: data
+        data.processed_folder: processed
+        load_data.output_file: initial_sales_clean.parquet
+        preprocess:
+          domicilio_filter_values: &id001
+          - true
+          - 'True'
+          - 'true'
+          min_purchase_count: 5
+          max_median_days_between: 30
+          max_std_days_between: 5
+          min_purchase_days_filter: 10
+          min_products_filter: 5
+          daily_output_file: daily.parquet
+          recommendation_output_file: filtered_agg_sales_for_rec.parquet
+        preprocess.daily_output_file: daily.parquet
+        preprocess.domicilio_filter_values: *id001
+        preprocess.max_median_days_between: 30
+        preprocess.max_std_days_between: 5
+        preprocess.min_products_filter: 5
+        preprocess.min_purchase_count: 5
+        preprocess.min_purchase_days_filter: 10
+        preprocess.recommendation_output_file: filtered_agg_sales_for_rec.parquet
+    outs:
+    - path: data/processed/daily.parquet
+      hash: md5
+      md5: a895115425cbf2d57cda16ea9ae21fda
+      size: 1021926
+  featurize:
+    cmd: python3 src/featurize.py --config params.yaml
+    deps:
+    - path: data/processed/daily.parquet
+      hash: md5
+      md5: a895115425cbf2d57cda16ea9ae21fda
+      size: 1021926
+    - path: src/featurize.py
+      hash: md5
+      md5: bc2d8d338945607fbc18a88d651a3eab
+      size: 3535
+    params:
+      params.yaml:
+        data.base_path: data
+        data.processed_folder: processed
+        featurize:
+          future_days_offset: 10
+          quincena_days:
+          - 28
+          - 29
+          - 30
+          - 31
+          - 1
+          - 2
+          - 13
+          - 14
+          - 15
+          - 16
+          recency_fillna_days: 9999
+          rolling_windows:
+          - 1
+          - 3
+          - 7
+          - 15
+          - 30
+          output_file: calendar_features.parquet
+        preprocess.daily_output_file: daily.parquet
+    outs:
+    - path: data/processed/calendar_features.parquet
+      hash: md5
+      md5: 1b60f64769fa7af63fa7d70a19c4b491
+      size: 2044531
+  train:
+    cmd: python3 src/train.py --config params.yaml
+    deps:
+    - path: data/processed/calendar_features.parquet
+      hash: md5
+      md5: 1b60f64769fa7af63fa7d70a19c4b491
+      size: 2044531
+    - path: src/train.py
+      hash: md5
+      md5: 5483dbf2626430817e68946dacd21321
+      size: 3299
+    params:
+      params.yaml:
+        base.random_state: 42
+        data.base_path: data
+        data.processed_folder: processed
+        featurize.output_file: calendar_features.parquet
+        model:
+          model_dir: models
+          model_name: model.joblib
+          calibrated_model_name: calibrated_model.joblib
+        train:
+          split_days_validation: 30
+          features:
+          - dow
+          - dom
+          - month
+          - is_weekend
+          - is_quincena
+          - days_since_last
+          - cnt_1d
+          - cnt_3d
+          - cnt_7d
+          - cnt_15d
+          - cnt_30d
+          target: purchased
+          logistic_regression:
+            solver: saga
+            max_iter: 100
+            tol: 0.001
+            C: 0.1
+            class_weight: balanced
+    outs:
+    - path: models/model.joblib
+      hash: md5
+      md5: d94539b8a82a2ad5e92e2a6ce2f7f1cb
+      size: 2161
+  evaluate:
+    cmd: python3 src/evaluate.py --config params.yaml
+    deps:
+    - path: data/processed/calendar_features.parquet
+      hash: md5
+      md5: 1b60f64769fa7af63fa7d70a19c4b491
+      size: 2044531
+    - path: models/model.joblib
+      hash: md5
+      md5: d94539b8a82a2ad5e92e2a6ce2f7f1cb
+      size: 2161
+    - path: src/evaluate.py
+      hash: md5
+      md5: 6f0b80626604478dbdee443079510035
+      size: 10991
+    params:
+      params.yaml:
+        base.random_state: 42
+        data.base_path: data
+        data.processed_folder: processed
+        evaluate:
+          calibration_method: sigmoid
+          calibration_bins: 10
+          evaluation_threshold: 0.5
+          shap_sample_size: 1000
+        featurize.output_file: calendar_features.parquet
+        model:
+          model_dir: models
+          model_name: model.joblib
+          calibrated_model_name: calibrated_model.joblib
+        reports:
+          reports_dir: reports
+          metrics_file: metrics.json
+          base_class_report_file: classification_report_base.txt
+          calibrated_class_report_file: classification_report_calibrated.txt
+          plots_dir: plots
+          calibration_plot: calibration_curve.png
+          importance_plot: feature_importance.png
+          shap_summary_plot: shap_summary.png
+          backtesting_metrics_file: backtesting_metrics.csv
+        train:
+          split_days_validation: 30
+          features:
+          - dow
+          - dom
+          - month
+          - is_weekend
+          - is_quincena
+          - days_since_last
+          - cnt_1d
+          - cnt_3d
+          - cnt_7d
+          - cnt_15d
+          - cnt_30d
+          target: purchased
+          logistic_regression:
+            solver: saga
+            max_iter: 100
+            tol: 0.001
+            C: 0.1
+            class_weight: balanced
+    outs:
+    - path: models/calibrated_model.joblib
+      hash: md5
+      md5: 5703294d4ca33361beddebc7c176d61f
+      size: 3121
+    - path: reports/classification_report_base.txt
+      hash: md5
+      md5: 3332b16ada3ac6c0f8496ce86a33d255
+      size: 428
+    - path: reports/classification_report_calibrated.txt
+      hash: md5
+      md5: 0e6d2aa3142199c30c5192484b2ebd55
+      size: 439
+    - path: reports/metrics.json
+      hash: md5
+      md5: 9aeb31bb5cb1997c0cb1b28fcdd73520
+      size: 296
+    - path: reports/plots/calibration_curve.png
+      hash: md5
+      md5: c6a156533da42939828685b41cafcbba
+      size: 46325
+    - path: reports/plots/feature_importance.png
+      hash: md5
+      md5: 47222a8cd2cc6c6f9d609a1c5189fc43
+      size: 26517
+    - path: reports/plots/shap_summary.png
+      hash: md5
+      md5: 3481af42fc93ea7ce0e47f32e6fe4cd7
+      size: 31118
+  backtest:
+    cmd: python3 src/backtest.py --config params.yaml
+    deps:
+    - path: data/processed/calendar_features.parquet
+      hash: md5
+      md5: 1b60f64769fa7af63fa7d70a19c4b491
+      size: 2044531
+    - path: data/raw/ventas_backtesting_new.csv
+      hash: md5
+      md5: 80b86e0d0ba1413c286c5671158a3cd8
+      size: 215403280
+    - path: models/calibrated_model.joblib
+      hash: md5
+      md5: 5703294d4ca33361beddebc7c176d61f
+      size: 3121
+    - path: src/backtest.py
+      hash: md5
+      md5: d9a033ebb53bfbce70c8829136a1fb82
+      size: 8016
+    params:
+      params.yaml:
+        backtesting:
+          backtest_start_date: '2025-04-22'
+          backtest_end_date: '2025-04-30'
+        data.backtesting_file: ventas_backtesting_new.csv
+        data.base_path: data
+        data.processed_folder: processed
+        data.raw_folder: raw
+        evaluate.evaluation_threshold: 0.5
+        featurize.output_file: calendar_features.parquet
+        model.calibrated_model_name: calibrated_model.joblib
+        model.model_dir: models
+        reports.backtesting_metrics_file: backtesting_metrics.csv
+        reports.reports_dir: reports
+        train.features:
+        - dow
+        - dom
+        - month
+        - is_weekend
+        - is_quincena
+        - days_since_last
+        - cnt_1d
+        - cnt_3d
+        - cnt_7d
+        - cnt_15d
+        - cnt_30d
+    outs:
+    - path: reports/backtesting_metrics.csv
+      hash: md5
+      md5: 7baf2d8e78b98b8bdec276eb027279ad
+      size: 515

@@ -1,0 +1,144 @@
+# Define el pipeline DVC para el modelo de PREDICCIÓN de probabilidad de compra
+
+stages:
+  load:
+    cmd: python3 src/load_data.py --config params.yaml
+    deps:
+      - src/load_data.py
+      - data/raw/productos.csv
+      - data/raw/terceros_completo.csv
+      # Depende de los archivos listados en params.yaml -> data.sales_files
+      - data/raw/ventas_completo.csv
+      - data/raw/ventas_backtesting_exploted.csv
+    params:
+      - data.base_path
+      - data.raw_folder
+      - data.processed_folder
+      - data.products_file
+      - data.terceros_file
+      - data.sales_files # <- Asegura que si cambias la lista, se re-ejecute
+      - load_data
+    outs:
+      # Define la salida usando los parámetros
+      - data/processed/initial_sales_clean.parquet:
+          persist: true # Queremos guardar esta salida intermedia
+
+  preprocess:
+    cmd: python3 src/preprocess.py --config params.yaml
+    deps:
+      - src/preprocess.py
+      - data/processed/initial_sales_clean.parquet
+    params:
+      - data.base_path
+      - data.processed_folder
+      - load_data.output_file # <- Dependencia del nombre del archivo de entrada
+      - preprocess
+      - preprocess.domicilio_filter_values # Ser explícito con los params usados
+      - preprocess.min_purchase_count
+      - preprocess.max_median_days_between
+      - preprocess.max_std_days_between
+      - preprocess.min_purchase_days_filter
+      - preprocess.min_products_filter
+      - preprocess.daily_output_file # Nombre de la primera salida
+      - preprocess.recommendation_output_file #
+    outs:
+      # Salida principal de esta etapa
+      - data/processed/daily.parquet:
+          persist: true
+
+  featurize:
+    cmd: python3 src/featurize.py --config params.yaml
+    deps:
+      - src/featurize.py
+      # Depende de la salida de la etapa anterior
+      - data/processed/daily.parquet
+    params:
+      - data.base_path
+      - data.processed_folder
+      - preprocess.daily_output_file # <- Dependencia del nombre del archivo de entrada
+      - featurize
+    outs:
+      # Salida principal de esta etapa
+      - data/processed/calendar_features.parquet:
+          persist: true
+
+  train:
+    cmd: python3 src/train.py --config params.yaml
+    deps:
+      - src/train.py
+      # Depende de la salida de la etapa anterior
+      - data/processed/calendar_features.parquet
+    params:
+      - base.random_state
+      - data.base_path
+      - data.processed_folder
+      - featurize.output_file # <- Dependencia del nombre del archivo de entrada
+      - train # Parámetros de entrenamiento (features, target, modelo)
+      - model # Parámetros de guardado del modelo (directorio, nombre)
+    outs:
+      # Salida: el modelo entrenado (sin calibrar)
+      - models/model.joblib:
+          persist: true
+
+  evaluate:
+    cmd: python3 src/evaluate.py --config params.yaml
+    deps:
+      - src/evaluate.py
+      # Depende del modelo entrenado y los features
+      - models/model.joblib
+      - data/processed/calendar_features.parquet
+    params:
+      - base.random_state
+      - data.base_path
+      - data.processed_folder
+      - train # Necesita parámetros de features, target, split_days
+      - featurize.output_file
+      - model # Directorio y nombres de modelos
+      - evaluate # Parámetros de evaluación/calibración
+      - reports # Parámetros de nombres de archivos/directorios de reporte
+    metrics:
+      # Métricas numéricas a rastrear
+      - reports/metrics.json:
+          cache: false # No cachear para ver diffs en git
+    plots:
+      # Plots a rastrear (imágenes)
+      - reports/plots/calibration_curve.png:
+          cache: false
+      - reports/plots/feature_importance.png:
+          cache: false
+      - reports/plots/shap_summary.png:
+          cache: false
+    outs:
+      # Otras salidas: modelo calibrado y reportes de texto
+      - models/calibrated_model.joblib:
+          persist: true # Guardar modelo calibrado
+      - reports/classification_report_base.txt:
+          cache: false
+      - reports/classification_report_calibrated.txt:
+          cache: false
+
+  backtest:
+    cmd: python3 src/backtest.py --config params.yaml
+    deps:
+      - src/backtest.py
+      # Depende del modelo calibrado, los features y los datos crudos de backtesting
+      - models/calibrated_model.joblib
+      - data/processed/calendar_features.parquet
+      - data/raw/ventas_backtesting_new.csv
+    params:
+      - data.base_path
+      - data.raw_folder
+      - data.processed_folder
+      - data.backtesting_file # <- Nombre del archivo de datos crudos
+      - featurize.output_file
+      - model.model_dir
+      - model.calibrated_model_name
+      - evaluate.evaluation_threshold # <- Umbral usado para evaluar
+      - backtesting # Parámetros de fechas
+      - reports.reports_dir
+      - reports.backtesting_metrics_file # <- Nombre del archivo de salida
+      - train.features # Lista de features usada por el modelo
+    outs:
+      # Salida: el reporte CSV de backtesting
+      - reports/backtesting_metrics.csv:
+          cache: false # No cachear para ver diffs en git

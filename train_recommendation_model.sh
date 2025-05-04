@@ -1,0 +1,1 @@
+ python3 src/train_recommender.py --config params.yaml
