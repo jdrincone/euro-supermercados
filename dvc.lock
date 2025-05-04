@@ -276,8 +276,8 @@ stages:
       size: 26517
     - path: reports/plots/shap_summary.png
       hash: md5
-      md5: 3481af42fc93ea7ce0e47f32e6fe4cd7
-      size: 31118
+      md5: 9f0667af244a1310a4d29e130611d9aa
+      size: 31947
   backtest:
     cmd: python3 src/backtest.py --config params.yaml
     deps:
