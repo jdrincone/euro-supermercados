@@ -1,4 +1,4 @@
-# Sistema de Recomendación y Predicción de Clientes
+# Sistema de Predicción de Clientes con probabilidad de compra X día/días y Recomendación
 
 Este proyecto implementa un sistema de recomendación y predicción de compras utilizando técnicas de Machine Learning.
 El sistema combina un modelo predictivo para identificar clientes con alta probabilidad de
@@ -11,12 +11,12 @@ El sistema está diseñado para clientes que cumplen las siguientes condiciones:
 ### Criterios de Filtrado
 1. **Historial de Domicilio**
    - Clientes que han realizado al menos una compra a domicilio
-   - Estado de domicilio válido según configuración
+
 
 2. **Patrones de Compra**
-   - Mínimo de días de compra configurable (`min_purchase_count`)
-   - Mediana de días entre compras menor a `max_median_days_between`
-   - Desviación estándar de días entre compras menor a `max_std_days_between`
+   - Mínimo de compra configurable (`min_purchase_count`)
+   - Mediana de días entre compras menor a (`max_median_days_between`)
+   - Desviación estándar de días entre compras menor a (`max_std_days_between`)
 
 3. **Actividad General**
    - Mínimo de días de compra (`min_purchase_days_filter`)
