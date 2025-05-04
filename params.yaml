@@ -11,7 +11,8 @@ data:
   sales_files: # Lista de archivos de ventas a combinar para DVC pipeline
     - ventas_completo.csv
     - ventas_backtesting_exploted.csv
-  backtesting_file: ventas_backtesting_new.csv # Archivo para etapa backtest DVC
+    - ventas_backtesting_new.csv
+  backtesting_file: ventas_backtesting_new.csv # Cambiar siempre por un nuevo archivo
 
 load_data: # Etapa DVC 'load'
   sales_columns:
@@ -85,8 +86,8 @@ evaluate: # Etapa DVC 'evaluate'
   shap_sample_size: 1000
 
 backtesting: # Etapa DVC 'backtest'
-  backtest_start_date: '2025-04-22'
-  backtest_end_date: '2025-04-30'
+  backtest_start_date: '2025-05-02'
+  backtest_end_date: '2025-05-06'
 
 # --- Sección para el Recomendador Item-Item (Scripts Manuales) ---
 recommendations:
