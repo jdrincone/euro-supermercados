@@ -12,7 +12,7 @@ data:
     - ventas_completo.csv
     - ventas_backtesting_exploted.csv
     - ventas_backtesting_new.csv
-  backtesting_file: ventas_backtesting_new.csv # Archivo para etapa backtest DVC
+  backtesting_file: ventas_backtesting_new.csv # Cambiar siempre por un nuevo archivo
 
 load_data: # Etapa DVC 'load'
   sales_columns:

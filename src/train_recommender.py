@@ -10,6 +10,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import pickle
 import warnings
 from dateutil.relativedelta import relativedelta
+import time
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -124,7 +125,7 @@ def train_and_save(config_path):
     """Carga datos, filtra productos y fecha, entrena CF Item-Item, precalcula y guarda."""
     print("--- Iniciando Entrenamiento y Pre-cálculo del Recomendador Item-Item ---")
     print("--- Filtros aplicados: Productos específicos + Últimos 3 Meses ---") # Mensaje actualizado
-
+    start_time = time.time()
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
@@ -191,7 +192,7 @@ def train_and_save(config_path):
         prod_desc_freq.rename(columns={'index': 'description'}, inplace=True) # Renombrar columna índice
 
         q50 = prod_desc_freq["count"].quantile(0.50)
-        q100 = prod_desc_freq["count"].quantile(1.0)
+        q100 = prod_desc_freq["count"].quantile(.90) #0.90 38seg--437 0.99
         print(f"Frecuencia por Descripción - Mediana (Q50): {q50}, Máxima (Q100): {q100}")
 
         # 5. Identificar descripciones dentro del rango Q50-Q100
@@ -212,17 +213,17 @@ def train_and_save(config_path):
     else:
         print("No quedan transacciones tras excluir productos iniciales. No se puede continuar.")
         return
-    # --- FIN: FILTRAR PRODUCTOS ---
+
 
     max_date = transactions_df_filtered_by_product['date'].max()
-    cutoff_date = max_date - relativedelta(months=3)
+    cutoff_date = max_date - relativedelta(months=1) # TODO pasar a parámeto 1, 2, 3 ?
 
     # DataFrame final a usar para la matriz
     transactions_df_final_filtered = transactions_df_filtered_by_product[
         transactions_df_filtered_by_product['date'] >= cutoff_date
     ].copy() # <--- DataFrame FILTRADO FINAL
     print(f"Fecha máxima en datos filtrados: {max_date.strftime('%Y-%m-%d')}")
-    print(f"Fecha de corte (3 meses antes): {cutoff_date.strftime('%Y-%m-%d')}")
+    print(f"Fecha de corte (1 meses antes): {cutoff_date.strftime('%Y-%m-%d')}")
     print(f"Filas después de filtrar por fecha (y producto): {len(transactions_df_final_filtered)}")
 
     # ----------------------------------
@@ -297,6 +298,8 @@ def train_and_save(config_path):
 
     except Exception as e:
         print(f"Error guardando los artefactos: {e}")
+
+    print(f"Tiempo requerido: {round(time.time()-start_time, 3)} seg")
 
 
 if __name__ == "__main__":
