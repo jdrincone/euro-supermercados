@@ -6,6 +6,7 @@ data:
   raw_folder: raw
   processed_folder: processed
   sales_file: ventas_completo.csv  # historico de ventas
+  products_file: productos.csv
   output_file: initial_sales_clean.parquet
   output_columns:
     - date_sale

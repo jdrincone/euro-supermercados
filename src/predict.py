@@ -100,12 +100,11 @@ def predict_high_probability_clients(config_path, prediction_dates_str,
     # Filtrar por umbral
     high_prob_clients = predict_df[predict_df['prob'] >= threshold].copy()
     documentos = high_prob_clients["client"]
+
     username = os.environ.get('API_USERNAME')
     password = os.environ.get('API_PASSWORD')
-    print(username, password)
 
     token = obtener_token(username, password)
-    print(token)
     terceros = obtener_terceros(token, documentos, batch_size=10)
     df_terceros = pd.DataFrame(terceros)
     df_terceros.rename(columns={'document': 'client'}, inplace=True)
