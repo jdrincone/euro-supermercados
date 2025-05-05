@@ -177,8 +177,6 @@ Opciones adicionales:
 - `--config`: Ruta alternativa a params.yaml
 
 ### Ejemplo salida
-Pensado durante unos segundos
-
 
 | date       | client     | prob   | name                       | email                                                                                                     | phone      | telephone  |
 | ---------- | ---------- | ------ | -------------------------- | --------------------------------------------------------------------------------------------------------- | ---------- | ---------- |
