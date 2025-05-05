@@ -21,3 +21,4 @@ pyarrow>=10.0.0
 
 jupyterlab
 # notebook
+python-dotenv

@@ -3,109 +3,46 @@ stages:
   load:
     cmd: python3 src/load_data.py --config params.yaml
     deps:
-    - path: data/raw/productos.csv
+    - path: params.yaml
       hash: md5
-      md5: 4ec42d7cc4443a493bc143f386477dfa
-      size: 5759232
-    - path: data/raw/terceros_completo.csv
-      hash: md5
-      md5: 7fbba33ebd635307953e1a5df78d1407
-      size: 86149861
-    - path: data/raw/ventas_backtesting_exploted.csv
-      hash: md5
-      md5: 221b2c34d2c074590486aba39ab55bea
-      size: 130739052
-    - path: data/raw/ventas_completo.csv
-      hash: md5
-      md5: 8cae1e50cd5ffb37c843ccaf8e302a19
-      size: 11497795694
+      md5: 409fb32a247bcfcc7d6f6c3f0196b00a
+      size: 4014
     - path: src/load_data.py
       hash: md5
-      md5: 05be593e238c5b880ffa91b688c4c6f7
-      size: 3638
-    params:
-      params.yaml:
-        data.base_path: data
-        data.processed_folder: processed
-        data.products_file: productos.csv
-        data.raw_folder: raw
-        data.sales_files:
-        - ventas_completo.csv
-        - ventas_backtesting_exploted.csv
-        data.terceros_file: terceros_completo.csv
-        load_data:
-          sales_columns:
-          - date_sale
-          - id_point_sale
-          - identification_doct
-          - product
-          - invoice_value_with_discount_and_without_iva
-          - domicilio_status
-          - amount
-          sales_dtype:
-            identification_doct: str
-            product: str
-          output_columns:
-          - date_sale
-          - id_client
-          - product
-          - amount
-          - invoice_value_with_discount_and_without_iva
-          - domicilio_status
-          output_file: initial_sales_clean.parquet
+      md5: f8174b06ae0ec69815d5906218e6ae7a
+      size: 4320
     outs:
     - path: data/processed/initial_sales_clean.parquet
       hash: md5
-      md5: 89e119794320f318f4653c10648fbd0b
-      size: 91764901
+      md5: 02b8fa80e78d776fe6d87a33bed7d9f5
+      size: 90755660
   preprocess:
     cmd: python3 src/preprocess.py --config params.yaml
     deps:
     - path: data/processed/initial_sales_clean.parquet
       hash: md5
-      md5: 89e119794320f318f4653c10648fbd0b
-      size: 91764901
+      md5: 02b8fa80e78d776fe6d87a33bed7d9f5
+      size: 90755660
+    - path: params.yaml
+      hash: md5
+      md5: 409fb32a247bcfcc7d6f6c3f0196b00a
+      size: 4014
     - path: src/preprocess.py
       hash: md5
-      md5: 9d3b089c3d7b7169d33d26efc372df52
-      size: 5456
-    params:
-      params.yaml:
-        data.base_path: data
-        data.processed_folder: processed
-        load_data.output_file: initial_sales_clean.parquet
-        preprocess:
-          domicilio_filter_values: &id001
-          - true
-          - 'True'
-          - 'true'
-          min_purchase_count: 10
-          max_median_days_between: 35
-          max_std_days_between: 3
-          min_purchase_days_filter: 10
-          min_products_filter: 5
-          daily_output_file: daily.parquet
-          recommendation_output_file: filtered_agg_sales_for_rec.parquet
-        preprocess.daily_output_file: daily.parquet
-        preprocess.domicilio_filter_values: *id001
-        preprocess.max_median_days_between: 35
-        preprocess.max_std_days_between: 3
-        preprocess.min_products_filter: 5
-        preprocess.min_purchase_count: 10
-        preprocess.min_purchase_days_filter: 10
-        preprocess.recommendation_output_file: filtered_agg_sales_for_rec.parquet
+      md5: d31d887bcd8bdff15136df5f26c5dcaa
+      size: 4978
     outs:
     - path: data/processed/daily.parquet
       hash: md5
-      md5: 2c79e6d711b94fefedc4aff5c9f0734c
-      size: 3161449
+      md5: 9eee3eefd899ee0c9b29ad8c4957d259
+      size: 3004448
   featurize:
     cmd: python3 src/featurize.py --config params.yaml
     deps:
     - path: data/processed/daily.parquet
       hash: md5
-      md5: 2c79e6d711b94fefedc4aff5c9f0734c
-      size: 3161449
+      md5: 9eee3eefd899ee0c9b29ad8c4957d259
+      size: 3004448
     - path: src/featurize.py
       hash: md5
       md5: bc2d8d338945607fbc18a88d651a3eab
@@ -115,7 +52,7 @@ stages:
         data.base_path: data
         data.processed_folder: processed
         featurize:
-          future_days_offset: 10
+          future_days_offset: 5
           quincena_days:
           - 28
           - 29
@@ -139,15 +76,15 @@ stages:
     outs:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 94acbe2a0f6e886d7dc03c436791dcd5
-      size: 6368866
+      md5: 3719e9f961714429d01e465c9b235798
+      size: 5981669
   train:
     cmd: python3 src/train.py --config params.yaml
     deps:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 94acbe2a0f6e886d7dc03c436791dcd5
-      size: 6368866
+      md5: 3719e9f961714429d01e465c9b235798
+      size: 5981669
     - path: src/train.py
       hash: md5
       md5: 5483dbf2626430817e68946dacd21321
@@ -186,18 +123,18 @@ stages:
     outs:
     - path: models/model.joblib
       hash: md5
-      md5: cdc2ac1ef54878f0b50e5a945fded9df
+      md5: 75e8beda0bc97d59907197be1c890a1c
       size: 2161
   evaluate:
     cmd: python3 src/evaluate.py --config params.yaml
     deps:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 94acbe2a0f6e886d7dc03c436791dcd5
-      size: 6368866
+      md5: 3719e9f961714429d01e465c9b235798
+      size: 5981669
     - path: models/model.joblib
       hash: md5
-      md5: cdc2ac1ef54878f0b50e5a945fded9df
+      md5: 75e8beda0bc97d59907197be1c890a1c
       size: 2161
     - path: src/evaluate.py
       hash: md5
@@ -252,46 +189,46 @@ stages:
     outs:
     - path: models/calibrated_model.joblib
       hash: md5
-      md5: ca457ee8c4851a173ad9d939eab45760
+      md5: e0f834dd9b94a26f6b3768103d0fd466
       size: 3121
     - path: reports/classification_report_base.txt
       hash: md5
-      md5: 0b3be99df4e3bdc12d3c347a5abf3958
+      md5: 84661d2c9d52e66318644f0aaa2b09ac
       size: 428
     - path: reports/classification_report_calibrated.txt
       hash: md5
-      md5: 7a58d400b5bc108658bfc10e5cb8f64f
+      md5: 62a725efddba1b177a74f3f990d26f29
       size: 439
     - path: reports/metrics.json
       hash: md5
-      md5: d6acedf16b29eb31c0a8df2487820811
-      size: 294
+      md5: 8de3dbe86f8c524e159d183347a1de51
+      size: 296
     - path: reports/plots/calibration_curve.png
       hash: md5
-      md5: 8792554ae0c8eb0c7ee5a481e9ae2fb7
-      size: 44519
+      md5: 8013ff49fbfafe909242283e8694cb7b
+      size: 44758
     - path: reports/plots/feature_importance.png
       hash: md5
-      md5: 54d67387bab792dfe044096a874b0041
-      size: 27098
+      md5: 8e0aac6a3106f20088f847bdf740f6c3
+      size: 26861
     - path: reports/plots/shap_summary.png
       hash: md5
-      md5: 7ac5b132663aae98b233d5e896b5e641
-      size: 32069
+      md5: 5e6ecad3170c4e375228510af9fefd38
+      size: 32038
   backtest:
     cmd: python3 src/backtest.py --config params.yaml
     deps:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 94acbe2a0f6e886d7dc03c436791dcd5
-      size: 6368866
+      md5: 3719e9f961714429d01e465c9b235798
+      size: 5981669
     - path: data/raw/ventas_backtesting_new.csv
       hash: md5
       md5: 80b86e0d0ba1413c286c5671158a3cd8
       size: 215403280
     - path: models/calibrated_model.joblib
       hash: md5
-      md5: ca457ee8c4851a173ad9d939eab45760
+      md5: e0f834dd9b94a26f6b3768103d0fd466
       size: 3121
     - path: src/backtest.py
       hash: md5
@@ -300,8 +237,8 @@ stages:
     params:
       params.yaml:
         backtesting:
-          backtest_start_date: '2025-04-22'
-          backtest_end_date: '2025-04-30'
+          backtest_start_date: '2025-04-30'
+          backtest_end_date: '2025-05-04'
         data.backtesting_file: ventas_backtesting_new.csv
         data.base_path: data
         data.processed_folder: processed
@@ -327,5 +264,5 @@ stages:
     outs:
     - path: reports/backtesting_metrics.csv
       hash: md5
-      md5: 90a41c514744838b8e4af1aeb441b5c5
-      size: 549
+      md5: dccc1708ff04808399df34368da2510a
+      size: 336

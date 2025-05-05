@@ -1,16 +1,19 @@
-# Sistema de Predicción de Clientes con probabilidad de compra X día/días y Recomendación
+# Motor de recomendación: Predicción de compras y recomendación de productos
 
 Este proyecto implementa un sistema de recomendación y predicción de compras utilizando técnicas de Machine Learning.
 El sistema combina un modelo predictivo para identificar clientes con alta probabilidad de
 compra dada una fecha del futuro, con un sistema de recomendación basado en filtrado colaborativo item-item.
 
-## 🎯 Público Objetivo
+## 🎯 Objetivos
+- **Predecir**, Dada un fecha, calcular la probabilidad de realizar al menos una compra de un cliente.  
+- **Recomendar** los productos más adecuados a los clientes con alta probabilidad de compra.
+        La recomendación es en base al historico del cliente
 
-El sistema está diseñado para clientes que cumplen las siguientes condiciones:
-
+---
 ### Criterios de Filtrado
-1. **Historial de Domicilio**
-   - Clientes que han realizado al menos una compra a domicilio
+1. **Historial de Clientes**
+   - Para clientes con compras en los últimos 3 meses, se toma su historial de compras de los últimos
+     6 meses (`months_to_fetch`)
 
 
 2. **Patrones de Compra**
@@ -23,6 +26,26 @@ El sistema está diseñado para clientes que cumplen las siguientes condiciones:
    - Mínimo de productos únicos comprados (`min_products_filter`)
 
 ## 🤖 Modelo Predictivo
+
+### Feature Engineer
+
+A partir del calendario completo **cliente‑fecha** se crean dos grupos de variables explicativas:
+
+| Grupo | Variable | Descripción |
+|-------|----------|-------------|
+| **Temporales** | `dow` | Día de la semana |
+| | `dom` | Día del mes |
+| | `month` | Mes |
+| | `is_weekend` | Indicador de fin de semana |
+| | `is_quincena` | Indicador de quincena (28, 29, 30, 31, 1, 2, 13, 14, 15, 16 de cada mes) |
+| | `days_since_last` | Días transcurridos desde la última compra |
+| **Ventanas móviles (*lagged counts*)** | `cnt_1d` | Compras del cliente en el **día previo** |
+| | `cnt_3d` | Compras acumuladas en los **3 días previos** |
+| | `cnt_7d` | Compras acumuladas en la **última semana** |
+| | `cnt_15d` | Compras acumuladas en los **últimos 15 días** |
+| | `cnt_30d` | Compras acumuladas en el **último mes** |
+
+Los conteos por ventana se calculan con un *rolling window* desplazado una fila para evitar fuga de información hacia el futuro:
 
 ### Características
 - **Tipo**: Regresión Logística con calibración

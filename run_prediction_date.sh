@@ -12,7 +12,7 @@ CONFIG_FILE="params.yaml"       # Asumiendo que los scripts usan esto por defect
 
 # --- Parámetros específicos ---
 # Define aquí la lista de fechas separadas por espacio DENTRO de las comillas
-TARGET_DATES="2025-04-25" # <--- Variable CORRECTA
+TARGET_DATES="2025-05-01" # <--- Variable CORRECTA
 THRESHOLD="0.55" # Umbral
 
 # Nombre de archivo de salida más descriptivo

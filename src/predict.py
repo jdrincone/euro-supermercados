@@ -5,13 +5,20 @@ import yaml
 from pathlib import Path
 import argparse
 import joblib
-from datetime import datetime
-import os # Importar os para manejo de directorios
+import os
+from dotenv import load_dotenv  # Import load_dotenv
 
-def predict_high_probability_clients(config_path, prediction_dates_str, threshold_override=None, output_filename='predictions.csv'): # Cambiado a output_filename
+from utils import obtener_token, obtener_terceros
+
+load_dotenv()
+
+
+def predict_high_probability_clients(config_path, prediction_dates_str,
+                                    threshold_override=0.5,
+                                    output_filename='predictions.csv'):  # Cambiado a output_filename
     """
-    Predice clientes con alta probabilidad de compra para fechas dadas
-    y añade su información de contacto. Guarda en la carpeta 'predictions/'.
+    Predice clientes con alta probabilidad de compra para fechas dadas.
+    Guarda en la carpeta 'predictions/' las predicciones.
     """
     with open(config_path) as f:
         config = yaml.safe_load(f)
@@ -23,48 +30,36 @@ def predict_high_probability_clients(config_path, prediction_dates_str, threshol
     model_params = config['model']
 
     base_path = Path(data_params['base_path'])
-    raw_path = base_path / data_params['raw_folder']
     processed_path = base_path / data_params['processed_folder']
     model_path = Path(model_params['model_dir'])
 
     # --- Directorio de Salida para Predicciones ---
-    predictions_dir = Path('predictions') # Nombre de la carpeta de salida
-    predictions_dir.mkdir(parents=True, exist_ok=True) # Crear carpeta si no existe
-    output_file_path = predictions_dir / output_filename # Ruta completa del archivo
+    predictions_dir = Path('predictions')  # Nombre de la carpeta de salida
+    predictions_dir.mkdir(parents=True, exist_ok=True)  # Crear carpeta si no existe
+    output_file_path = predictions_dir / output_filename  # Ruta completa del archivo
     # ---------------------------------------------
 
     features_file = processed_path / config['featurize']['output_file']
     calibrated_model_file = model_path / model_params['calibrated_model_name']
-    terceros_file = raw_path / data_params['terceros_file']
 
     # Usar umbral de params.yaml a menos que se especifique uno
-    threshold = threshold_override if threshold_override is not None else eval_params['evaluation_threshold']
+    threshold = threshold_override if threshold_override is not None else eval_params[
+        'evaluation_threshold']
     print(f"Usando umbral de probabilidad: {threshold:.2f}")
 
-    # --- Cargar Modelo, Features y Datos de Contacto ---
+    # --- Cargar Modelo y Features ---
     try:
         print(f"Cargando modelo calibrado desde: {calibrated_model_file}")
         calibrator = joblib.load(calibrated_model_file)
 
         print(f"Cargando calendario de features desde: {features_file}")
         calendar = pd.read_parquet(features_file)
-        calendar['date'] = pd.to_datetime(calendar['date']) # Asegurar tipo datetime
-        calendar['client'] = calendar['client'].astype(str) # Asegurar tipo str
-
-        print(f"Cargando información de contacto desde: {terceros_file}")
-        terceros = pd.read_csv(
-            terceros_file,
-            converters={"document": str} # Leer como string
-        )
-        terceros = terceros.drop_duplicates("document")
-        contact_cols = ['document', 'name', 'email', 'telephone'] # Ajustar si las columnas se llaman diferente
-        terceros = terceros.loc[:, contact_cols]
-        terceros['document'] = terceros['document'].str.strip()
-        terceros.rename(columns={'document': 'client'}, inplace=True) # Renombrar para merge
-        terceros['client'] = terceros['client'].astype(str) # Asegurar tipo str
+        calendar['date'] = pd.to_datetime(calendar['date'])  # Asegurar tipo datetime
+        calendar['client'] = calendar['client'].astype(str)  # Asegurar tipo str
 
     except FileNotFoundError as e:
-        print(f"Error: Archivo no encontrado - {e}. Asegúrate de haber ejecutado el pipeline DVC (`dvc repro`) primero.")
+        print(
+            f"Error: Archivo no encontrado - {e}. Asegúrate de haber ejecutado el pipeline DVC (`dvc repro`) primero.")
         return
     except Exception as e:
         print(f"Error cargando archivos: {e}")
@@ -82,7 +77,8 @@ def predict_high_probability_clients(config_path, prediction_dates_str, threshol
     predict_df = calendar[calendar['date'].isin(prediction_dates)].copy()
 
     if predict_df.empty:
-        print("Error: No se encontraron datos de features para las fechas especificadas en el calendario procesado.")
+        print(
+            "Error: No se encontraron datos de features para las fechas especificadas en el calendario procesado.")
         print(f"Rango de fechas en calendario: {calendar['date'].min().date()} a {calendar['date'].max().date()}")
         return
 
@@ -91,46 +87,51 @@ def predict_high_probability_clients(config_path, prediction_dates_str, threshol
     try:
         predict_df['prob'] = calibrator.predict_proba(predict_df[features])[:, 1]
     except ValueError as e:
-         print(f"Error durante la predicción. ¿Faltan features o hay tipos de datos incorrectos? Detalle: {e}")
-         print("Features esperadas:", features)
-         print("Features encontradas:", predict_df[features].columns.tolist())
-         print("Tipos de datos encontrados:\n", predict_df[features].dtypes)
-         return
+        print(
+            f"Error durante la predicción. ¿Faltan features o hay tipos de datos incorrectos? Detalle: {e}")
+        print("Features esperadas:", features)
+        print("Features encontradas:", predict_df[features].columns.tolist())
+        print("Tipos de datos encontrados:\n", predict_df[features].dtypes)
+        return
     except Exception as e:
         print(f"Error inesperado durante la predicción: {e}")
         return
 
     # Filtrar por umbral
     high_prob_clients = predict_df[predict_df['prob'] >= threshold].copy()
-    print(f"Clientes encontrados con probabilidad >= {threshold:.2f}: {len(high_prob_clients)}")
+    documentos = high_prob_clients["client"]
+    username = os.environ.get('API_USERNAME')
+    password = os.environ.get('API_PASSWORD')
+    print(username, password)
+
+    token = obtener_token(username, password)
+    print(token)
+    terceros = obtener_terceros(token, documentos, batch_size=10)
+    df_terceros = pd.DataFrame(terceros)
+    df_terceros.rename(columns={'document': 'client'}, inplace=True)
+    results = pd.merge(
+        high_prob_clients.loc[:, ['date', 'client', "prob"]],
+        df_terceros.loc[:, ['name', 'email', 'phone', 'telephone', 'client']],
+        on='client')
+
+    print(
+        f"Clientes encontrados con probabilidad >= {threshold:.2f}: {len(high_prob_clients)}")
 
     if high_prob_clients.empty:
         print("No se encontraron clientes con probabilidad de compra por encima del umbral para las fechas dadas.")
         return
 
-    # --- Añadir Información de Contacto y Guardar ---
-    print("Añadiendo información de contacto...")
-    results = pd.merge(
-        high_prob_clients[['date', 'client', 'prob']],
-        terceros,
-        on='client',
-        how='left' # Mantener todas las predicciones, incluso si no hay contacto
-    )
+    # --- Guardar Predicciones (sin información de contacto) ---
+    print("Guardando predicciones...")
 
     # Reordenar y formatear
     results['date'] = results['date'].dt.strftime('%Y-%m-%d')
     results = results.sort_values(['date', 'prob'], ascending=[True, False])
-    final_cols = ['date', 'client', 'name', 'email', 'telephone', 'prob']
-    # Asegurarse que todas las columnas existan, rellenando NAs si alguna de contacto falta
-    for col in final_cols:
-        if col not in results.columns:
-            results[col] = np.nan
-    results = results[final_cols]
 
     # Guardar en CSV dentro de la carpeta predictions/
     try:
-        results.to_csv(output_file_path, index=False, float_format='%.4f') # Usar la ruta completa
-        print(f"Predicciones guardadas exitosamente en: {output_file_path}") # Mostrar ruta completa
+        results.to_csv(output_file_path, index=False, float_format='%.4f')  # Usar la ruta completa
+        print(f"Predicciones guardadas exitosamente en: {output_file_path}")  # Mostrar ruta completa
         # Mostrar una vista previa
         print("\nVista previa de las predicciones:")
         print(results.head().to_string(index=False))
@@ -139,7 +140,8 @@ def predict_high_probability_clients(config_path, prediction_dates_str, threshol
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Predice clientes con alta probabilidad de compra para fechas dadas.")
+    parser = argparse.ArgumentParser(
+        description="Predice clientes con alta probabilidad de compra para fechas dadas.")
     parser.add_argument(
         '--dates',
         required=True,
@@ -159,7 +161,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         '--output',
-        default='predictions.csv', # Nombre del archivo, no la ruta completa
+        default='predictions.csv',  # Nombre del archivo, no la ruta completa
         help='Nombre del archivo CSV de salida (se guardará en la carpeta predictions/, default: predictions.csv)'
     )
 
