@@ -136,7 +136,18 @@ Los conteos por ventana se calculan con un *rolling window* desplazado una fila 
    dvc remote add -d myremote s3://your-bucket/dvc-store
    dvc pull
    ```
-
+5. **Construir .env**
+   ```bash
+   API_USERNAME=""
+   API_PASSWORD=""
+   ```
+6.  **Data histórica base**
+- Se debe de tener la data histórica base para no 
+  realizar de cero la consulta en el API
+ ```bash
+   data/raw/productos.csv
+   data/raw/ventas_completo.csv
+   ```
 ## 🔄 Pipeline de Machine Learning
 
 El pipeline completo para el modelo de probabilidad:

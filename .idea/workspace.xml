@@ -4,15 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="feat: conetion to api.">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dvc.lock" beforeDir="false" afterPath="$PROJECT_DIR$/dvc.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/params.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/params.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/backtesting_metrics.csv" beforeDir="false" afterPath="$PROJECT_DIR$/reports/backtesting_metrics.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/predict.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/predict.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/train_recommender.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/train_recommender.py" afterDir="false" />
-    </list>
+    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="feat: conetion to api." />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -272,7 +264,15 @@
       <option name="project" value="LOCAL" />
       <updated>1746405454212</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="feat: conetion to api.">
+      <option name="closed" value="true" />
+      <created>1746409370030</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1746409370030</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
