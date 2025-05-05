@@ -5,19 +5,7 @@ stages:
     cmd: python3 src/load_data.py --config params.yaml
     deps:
       - src/load_data.py
-      - data/raw/productos.csv
-      - data/raw/terceros_completo.csv
-      # Depende de los archivos listados en params.yaml -> data.sales_files
-      - data/raw/ventas_completo.csv
-      - data/raw/ventas_backtesting_exploted.csv
-    params:
-      - data.base_path
-      - data.raw_folder
-      - data.processed_folder
-      - data.products_file
-      - data.terceros_file
-      - data.sales_files
-      - load_data
+      - params.yaml
     outs:
       - data/processed/initial_sales_clean.parquet:
           persist: true # Queremos guardar esta salida intermedia
@@ -27,19 +15,7 @@ stages:
     deps:
       - src/preprocess.py
       - data/processed/initial_sales_clean.parquet
-    params:
-      - data.base_path
-      - data.processed_folder
-      - load_data.output_file
-      - preprocess
-      - preprocess.domicilio_filter_values
-      - preprocess.min_purchase_count
-      - preprocess.max_median_days_between
-      - preprocess.max_std_days_between
-      - preprocess.min_purchase_days_filter
-      - preprocess.min_products_filter
-      - preprocess.daily_output_file
-      - preprocess.recommendation_output_file
+      - params.yaml
     outs:
       - data/processed/daily.parquet:
           persist: true

@@ -191,14 +191,13 @@ def train_and_save(config_path):
         prod_desc_freq = transactions_filtered['description'].value_counts().reset_index(name='count')
         prod_desc_freq.rename(columns={'index': 'description'}, inplace=True) # Renombrar columna índice
 
-        q50 = prod_desc_freq["count"].quantile(0.50)
-        q100 = prod_desc_freq["count"].quantile(.90) #0.90 38seg--437 0.99
-        print(f"Frecuencia por Descripción - Mediana (Q50): {q50}, Máxima (Q100): {q100}")
+        q_min = prod_desc_freq["count"].quantile(.90)
+        q_max = prod_desc_freq["count"].quantile(1)
 
-        # 5. Identificar descripciones dentro del rango Q50-Q100
-        cond = prod_desc_freq["count"].between(q50, q100, inclusive="both")
+        # 5. Identificar descripciones dentro del rango Q
+        cond = prod_desc_freq["count"].between(q_min, q_max, inclusive="both")
         target_descriptions = prod_desc_freq[cond]["description"].unique()
-        print(f"Número de descripciones seleccionadas (frecuencia entre Q50 y Q100): {len(target_descriptions)}")
+        print(f"Número de descripciones seleccionadas (frecuencia): {len(target_descriptions)}")
 
         # 6. Obtener los IDs de producto (`product`) que corresponden a esas descripciones
         target_product_ids = productos[productos['description'].isin(target_descriptions)]['product'].unique()
@@ -216,14 +215,15 @@ def train_and_save(config_path):
 
 
     max_date = transactions_df_filtered_by_product['date'].max()
-    cutoff_date = max_date - relativedelta(months=1) # TODO pasar a parámeto 1, 2, 3 ?
+    last_month = data_params.get('last_month_with_sale', 3)
+    cutoff_date = max_date - relativedelta(months=last_month)
 
     # DataFrame final a usar para la matriz
     transactions_df_final_filtered = transactions_df_filtered_by_product[
         transactions_df_filtered_by_product['date'] >= cutoff_date
     ].copy() # <--- DataFrame FILTRADO FINAL
     print(f"Fecha máxima en datos filtrados: {max_date.strftime('%Y-%m-%d')}")
-    print(f"Fecha de corte (1 meses antes): {cutoff_date.strftime('%Y-%m-%d')}")
+    print(f"Fecha de corte ({last_month} meses antes): {cutoff_date.strftime('%Y-%m-%d')}")
     print(f"Filas después de filtrar por fecha (y producto): {len(transactions_df_final_filtered)}")
 
     # ----------------------------------

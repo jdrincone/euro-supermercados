@@ -5,13 +5,18 @@ data:
   base_path: data
   raw_folder: raw
   processed_folder: processed
-  # Archivos para pipeline DVC (Predicción)
+  sales_file: ventas_completo.csv  # historico de ventas
   products_file: productos.csv
-  terceros_file: terceros_completo.csv
-  sales_files: # Lista de archivos de ventas a combinar para DVC pipeline
-    - ventas_completo.csv
-    - ventas_backtesting_exploted.csv
-    - ventas_backtesting_new.csv
+  output_file: initial_sales_clean.parquet
+  output_columns:
+    - date_sale
+    - identification_doct
+    - product
+    - amount
+    - invoice_value_with_discount_and_without_iva
+    - domicilio_status
+  months_to_fetch: 6  # Parámetro
+  last_month_with_sale: 3
   backtesting_file: ventas_backtesting_new.csv # Cambiar siempre por un nuevo archivo
 
 load_data: # Etapa DVC 'load'
@@ -36,17 +41,16 @@ load_data: # Etapa DVC 'load'
   output_file: initial_sales_clean.parquet # Salida intermedia
 
 preprocess: # Etapa DVC 'preprocess'
-  domicilio_filter_values: [True, 'True', 'true']
-  min_purchase_count: 5
-  max_median_days_between: 30
-  max_std_days_between: 5
+  min_purchase_count: 10
+  max_median_days_between: 35
+  max_std_days_between: 3
   min_purchase_days_filter: 10
   min_products_filter: 5
   daily_output_file: daily.parquet # Salida principal de esta etapa
   recommendation_output_file: filtered_agg_sales_for_rec.parquet # Salida para recomendación
 
 featurize: # Etapa DVC 'featurize'
-  future_days_offset: 10
+  future_days_offset: 5 # CANTIDAD DE DIAS A PRED en el futuro
   quincena_days: [28, 29, 30, 31, 1, 2, 13, 14, 15, 16]
   recency_fillna_days: 9999
   rolling_windows: [1, 3, 7, 15, 30]
@@ -86,8 +90,8 @@ evaluate: # Etapa DVC 'evaluate'
   shap_sample_size: 1000
 
 backtesting: # Etapa DVC 'backtest'
-  backtest_start_date: '2025-05-02'
-  backtest_end_date: '2025-05-06'
+  backtest_start_date: '2025-05-30'
+  backtest_end_date: '2025-05-02'
 
 # --- Sección para el Recomendador Item-Item (Scripts Manuales) ---
 recommendations:

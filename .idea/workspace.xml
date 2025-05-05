@@ -4,12 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="feat: entrenar modelo con nuevos datos.">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/notebooks/model_probability.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/model_probability.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/params.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/params.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/train_recommender.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/train_recommender.py" afterDir="false" />
-    </list>
+    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="feat: conetion to api." />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -46,32 +41,32 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.ad2.executor&quot;: &quot;Run&quot;,
-    &quot;Python.ad2_new_feats.executor&quot;: &quot;Run&quot;,
-    &quot;Python.ad2_optimizado.executor&quot;: &quot;Run&quot;,
-    &quot;Python.advance.executor&quot;: &quot;Run&quot;,
-    &quot;Python.calude.executor&quot;: &quot;Run&quot;,
-    &quot;Python.gemini.executor&quot;: &quot;Run&quot;,
-    &quot;Python.ml_propensity.executor&quot;: &quot;Run&quot;,
-    &quot;Python.survival.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;3-reentreno-con-data-hasta-1-mayo&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/juandavidrincon/Documents/euro&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.ad2.executor": "Run",
+    "Python.ad2_new_feats.executor": "Run",
+    "Python.ad2_optimizado.executor": "Run",
+    "Python.advance.executor": "Run",
+    "Python.calude.executor": "Run",
+    "Python.gemini.executor": "Run",
+    "Python.ml_propensity.executor": "Run",
+    "Python.survival.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "5-ampliar-publico-target",
+    "last_opened_file_path": "/Users/juandavidrincon/Documents/euro/data/raw",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$" />
       <recent name="$PROJECT_DIR$/data/raw" />
+      <recent name="$PROJECT_DIR$" />
       <recent name="$PROJECT_DIR$/data" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
@@ -227,7 +222,7 @@
       <workItem from="1746281600913" duration="81000" />
       <workItem from="1746316454307" duration="3794000" />
       <workItem from="1746321428308" duration="4940000" />
-      <workItem from="1746362595552" duration="6926000" />
+      <workItem from="1746362595552" duration="11042000" />
     </task>
     <task id="LOCAL-00001" summary="&quot;delete proyect structure&quot;">
       <option name="closed" value="true" />
@@ -253,7 +248,31 @@
       <option name="project" value="LOCAL" />
       <updated>1746329763881</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="feat: entrenar modelo con nuevos datos.">
+      <option name="closed" value="true" />
+      <created>1746380260374</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1746380260374</updated>
+    </task>
+    <task id="LOCAL-00005" summary="feat: conetion to api.">
+      <option name="closed" value="true" />
+      <created>1746405454212</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1746405454212</updated>
+    </task>
+    <task id="LOCAL-00006" summary="feat: conetion to api.">
+      <option name="closed" value="true" />
+      <created>1746409370030</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1746409370030</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -273,7 +292,8 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="&quot;delete proyect structure&quot;" />
     <MESSAGE value="feat: entrenar modelo con nuevos datos." />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: entrenar modelo con nuevos datos." />
+    <MESSAGE value="feat: conetion to api." />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: conetion to api." />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/euro$survival.coverage" NAME="survival Coverage Results" MODIFIED="1746102202454" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/notebooks" />
