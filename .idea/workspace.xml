@@ -4,20 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="docs: update">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dvc.lock" beforeDir="false" afterPath="$PROJECT_DIR$/dvc.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dvc.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/dvc.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/params.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/params.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/backtesting_metrics.csv" beforeDir="false" afterPath="$PROJECT_DIR$/reports/backtesting_metrics.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/classification_report_base.txt" beforeDir="false" afterPath="$PROJECT_DIR$/reports/classification_report_base.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/classification_report_calibrated.txt" beforeDir="false" afterPath="$PROJECT_DIR$/reports/classification_report_calibrated.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/metrics.json" beforeDir="false" afterPath="$PROJECT_DIR$/reports/metrics.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/plots/calibration_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/calibration_curve.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/plots/feature_importance.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/feature_importance.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/plots/shap_summary.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/shap_summary.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/backtest.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/backtest.py" afterDir="false" />
-    </list>
+    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="feat: update" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -293,7 +280,15 @@
       <option name="project" value="LOCAL" />
       <updated>1746409729097</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="feat: update">
+      <option name="closed" value="true" />
+      <created>1746507189636</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1746507189636</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -315,7 +310,8 @@
     <MESSAGE value="feat: entrenar modelo con nuevos datos." />
     <MESSAGE value="feat: conetion to api." />
     <MESSAGE value="docs: update" />
-    <option name="LAST_COMMIT_MESSAGE" value="docs: update" />
+    <MESSAGE value="feat: update" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: update" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/euro$survival.coverage" NAME="survival Coverage Results" MODIFIED="1746102202454" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/notebooks" />

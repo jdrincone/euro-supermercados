@@ -185,6 +185,23 @@ Opciones adicionales:
 | 2025-05-01 | 1235245925 | 0.7904 | GISEL FERNANDEZ            | [gisellecfr@gmail.com](mailto:gisellecfr@gmail.com)                                                       | 3013475654 | 0          |
 
 
+
+### BackTesting
+En params.yaml ajustar las fewchas de prueba (Fecha después)
+```bash
+backtesting: # Etapa DVC 'backtest'
+  backtest_start_date: '2025-05-02'
+  backtest_end_date: '2025-05-08'
+  
+
+```
+Y luego ejecutar: 
+```
+python3 src/backtest.py --config params.yaml
+```
+
+
+
 ## 🎯 Sistema de Recomendación
 
 ### 1. Entrenamiento del Recomendador
