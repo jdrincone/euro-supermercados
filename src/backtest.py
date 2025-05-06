@@ -1,141 +1,131 @@
-# src/backtest.py
 import pandas as pd
 import yaml
 from pathlib import Path
 import argparse
+import os
+from dotenv import load_dotenv
+from datetime import datetime, timedelta
 import joblib
-from sklearn.metrics import precision_score, recall_score, fbeta_score, confusion_matrix
-from datetime import timedelta
+import logging
+
+from utils import obtener_token, obtener_ventas
+
+load_dotenv()
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def perform_backtesting(config_path):
-    """Realiza el backtesting usando datos futuros y el modelo calibrado."""
+    """
+    Realiza backtesting comparando ventas reales con clientes de alta probabilidad por fecha,
+    cliente a cliente.
+    """
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
+    # --- Obtener Parámetros y Rutas ---
     data_params = config['data']
     train_params = config['train']
     eval_params = config['evaluate']
-    backtest_params = config['backtesting']
     model_params = config['model']
+    backtest_params = config['backtesting']
     reports_params = config['reports']
 
     base_path = Path(data_params['base_path'])
-    raw_path = base_path / data_params['raw_folder']
     processed_path = base_path / data_params['processed_folder']
     model_path = Path(model_params['model_dir'])
     reports_path = Path(reports_params['reports_dir'])
     reports_path.mkdir(parents=True, exist_ok=True)
 
-    # --- Cargar Datos Necesarios ---
-    print("Cargando datos de backtesting...")
-    backtest_file = raw_path / data_params['backtesting_file']
-    # Usar las columnas definidas en load_data para consistencia, si aplica
-    cols = config['load_data']['sales_columns']
-    dtype_sales = config['load_data']['sales_dtype']
-    ventas_back = pd.read_csv(
-        backtest_file,
-        usecols=cols,
-        dtype=dtype_sales
-    ).rename(columns={'identification_doct': 'client'})
-
-    ventas_back['client'] = ventas_back['client'].str.strip().astype(str) # Asegurar tipo str
-    ventas_back['date_sale'] = pd.to_datetime(ventas_back['date_sale'], errors='coerce', dayfirst=True)
-    ventas_back.dropna(subset=['date_sale'], inplace=True)
-    ventas_back['date_sale'] = ventas_back['date_sale'].dt.normalize()
-    print(f"  Datos crudos backtesting: {len(ventas_back)} filas")
-
-    print("Cargando calendario de features y modelo calibrado...")
     features_file = processed_path / config['featurize']['output_file']
-    calendar = pd.read_parquet(features_file)
-    calendar['client'] = calendar['client'].astype(str) # Asegurar tipo str
-
     calibrated_model_file = model_path / model_params['calibrated_model_name']
-    calibrator = joblib.load(calibrated_model_file)
-
-    # Filtrar ventas_back para incluir solo clientes del calendario
-    clients_in_calendar = calendar['client'].unique()
-    ventas_back_filtered = ventas_back[ventas_back['client'].isin(clients_in_calendar)].copy()
-    print(f"  Datos backtesting filtrados por cliente: {len(ventas_back_filtered)} filas")
-
-    # Obtener compras reales por día/cliente para el periodo de backtesting
-    clientes_by_day_actual = ventas_back_filtered[['client', 'date_sale']].drop_duplicates()
-    print(f"  Compras reales únicas (cliente-día) en backtesting: {len(clientes_by_day_actual)}")
-
-    # --- Bucle de Backtesting ---
-    features = train_params['features']
     threshold = eval_params['evaluation_threshold']
-    start_date = pd.to_datetime(backtest_params['backtest_start_date'])
-    end_date = pd.to_datetime(backtest_params['backtest_end_date'])
+
+    username = os.environ.get('API_USERNAME')
+    password = os.environ.get('API_PASSWORD')
+
+    start_date_str = backtest_params['backtest_start_date']
+    end_date_str = backtest_params['backtest_end_date']
+
+    # --- 1. Descargar ventas del API para el rango de fechas ---
+    logging.info(f"Descargando ventas del API desde {start_date_str} hasta {end_date_str}...")
+    token = obtener_token(username, password)
+
+    end_date_dt = datetime.strptime(end_date_str, '%Y-%m-%d')
+    end_date_plus_one = end_date_dt + timedelta(days=1)
+    end_date_str_plus_one = end_date_plus_one.strftime('%Y-%m-%d')
+
+    nuevas_ventas, _ = obtener_ventas(token, start_date_str, end_date_str_plus_one)
+
+    if not nuevas_ventas:
+        logging.warning("No se descargaron ventas del API.")
+        return
+
+    df_nuevas_ventas = pd.DataFrame(nuevas_ventas)
+    ventas_explotado = df_nuevas_ventas.explode('invoice_details').reset_index(drop=True)
+    invoice_df = pd.json_normalize(ventas_explotado['invoice_details'])
+    ventas_final = pd.concat([ventas_explotado.drop(columns=['invoice_details']).reset_index(drop=True),
+                              invoice_df.reset_index(drop=True)], axis=1)
+    ventas_final['date'] = pd.to_datetime(ventas_final['date_sale']).dt.normalize()
+    ventas_final['client'] = ventas_final['identification_doct'].astype(str).str.strip()
+    logging.info(f"Total de ventas descargadas: {len(ventas_final)}")
+    logging.info(f"Ventas por fecha:\n{ventas_final.groupby(['date']).agg({'client': 'nunique'})}")
+
+    # --- 2. Cargar el archivo daily (calendario de features) y obtener clientes de alta probabilidad ---
+    logging.info(f"Cargando calendario de features desde: {features_file}")
+    calendar = pd.read_parquet(features_file)
+    calendar['date'] = pd.to_datetime(calendar['date']).dt.normalize()
+    calendar['client'] = calendar['client'].astype(str)
+
+    ventas_final = ventas_final[ventas_final['client'].isin(calendar['client'].unique())].copy()
+    logging.info(f"Ventas filtradas por clientes en calendario: {len(ventas_final)}")
+
+    logging.info(f"Cargando modelo calibrado desde: {calibrated_model_file}")
+    calibrator = joblib.load(calibrated_model_file)
+    features = train_params['features']
+    calendar['prob'] = calibrator.predict_proba(calendar[features])[:, 1]
+    high_prob_clients = calendar[calendar['prob'] >= threshold][['date', 'client', 'prob']].copy()
+    logging.info(f"Total de clientes con alta probabilidad: {len(high_prob_clients)}")
+    logging.info(f"Clientes de alta probabilidad por fecha (head):\n{high_prob_clients[['date', 'client', 'prob']].head()}")
+
+    # --- 3. Realizar el backtesting por fecha, cliente a cliente ---
+    start_date = pd.to_datetime(start_date_str).date()
+    end_date = pd.to_datetime(end_date_str).date()
     backtest_dates = pd.date_range(start_date, end_date, freq="D")
-
-    print(f"Iniciando backtesting desde {start_date.date()} hasta {end_date.date()} con umbral {threshold:.2f}")
     records = []
+
+    logging.info("Iniciando backtesting por fecha, cliente a cliente...")
     for fecha in backtest_dates:
-        print(f"  Procesando fecha: {fecha.date()}")
+        fecha_dt = pd.to_datetime(fecha).normalize()
+        logging.info(f"  Procesando fecha: {fecha_dt.date()}")
 
-        # Obtener predicciones para la fecha actual del calendario
-        future_df = calendar[calendar['date'] == fecha].copy()
-        if future_df.empty:
-            print(f"    No hay datos en calendario para {fecha.date()}, saltando.")
-            records.append({
-                'fecha_comparacion': fecha, 'TP': 0, 'FP': 0, 'FN': 0,
-                'Precision': 0, 'Recall': 0, 'F0.5-score': 0, 'Clientes_Reales': 0, 'Clientes_Predichos': 0
-            })
-            continue
+        # Ventas reales para la fecha actual
+        ventas_hoy = ventas_final[ventas_final['date'] == fecha_dt][['client', 'date']].drop_duplicates()
 
-        future_df['prob'] = calibrator.predict_proba(future_df[features])[:, 1]
-        high_pred = future_df[future_df['prob'] >= threshold][['client', 'date', 'prob']] # Clientes predichos como compradores
-        n_predichos = len(high_pred)
+        # Predicciones para la fecha actual
+        predicciones_hoy = high_prob_clients[high_prob_clients['date'] == fecha_dt][['client', 'date']].drop_duplicates()
 
-        # Obtener compras reales para la fecha actual
-        clientes_actual_fecha = clientes_by_day_actual[clientes_by_day_actual["date_sale"] == fecha][['client', 'date_sale']]
-        n_reales = len(clientes_actual_fecha)
+        # Unir los DataFrames por cliente y fecha para comparar
+        merged_df = pd.merge(ventas_hoy, predicciones_hoy, on=['client', 'date'], how='outer', indicator=True)
 
-        # Si no hubo compras reales ese día
-        if n_reales == 0:
-            tp = 0
-            fp = n_predichos # Todos los predichos son falsos positivos
-            fn = 0 # No hubo compras reales que fallamos
-            print(f"    No hubo compras reales. Predichos: {n_predichos} (FP)")
-        # Si no hubo predicciones ese día
-        elif n_predichos == 0:
-            tp = 0
-            fp = 0
-            fn = n_reales # Todas las compras reales son falsos negativos
-            print(f"    No hubo predicciones. Reales: {n_reales} (FN)")
-        # Si hubo ambos, calcular métricas
-        else:
-            # Comparar predichos con reales
-            rev_back = pd.merge(
-                clientes_actual_fecha.rename(columns={'date_sale': 'date'}), # Renombrar para merge
-                high_pred,
-                on=["client", "date"], # Merge por cliente y fecha
-                how='outer',
-                indicator=True
-            )
-
-            counts = rev_back["_merge"].value_counts()
-            tp = counts.get("both", 0)         # Predicho y Compró
-            fp = counts.get("right_only", 0)   # Predicho y No Compró
-            fn = counts.get("left_only", 0)    # No Predicho y Compró
-            # tn no se calcula directamente aquí, pero no se necesita para Precision/Recall/F
-
-            print(f"    TP: {tp}, FP: {fp}, FN: {fn}. Reales: {n_reales}, Predichos: {n_predichos}")
-
+        # Contar TP, FP, FN usando la columna _merge
+        tp = len(merged_df[merged_df['_merge'] == 'both'])
+        fp = len(merged_df[merged_df['_merge'] == 'right_only'])
+        fn = len(merged_df[merged_df['_merge'] == 'left_only'])
+        n_ventas_hoy = len(ventas_hoy)
+        n_predicciones_hoy = len(predicciones_hoy)
 
         # Calcular métricas
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0
         beta = 0.5
-        f05 = (1 + beta**2) * precision * recall / (beta**2 * precision + recall) if (precision + recall) > 0 else 0
+        f05 = (1 + beta ** 2) * precision * recall / (beta ** 2 * precision + recall) if (precision + recall) > 0 else 0
 
         records.append({
-            'fecha_comparacion': fecha,
+            'fecha': fecha_dt.date(),
             'TP': tp,
             'FP': fp,
             'FN': fn,
-            'Clientes_Reales': n_reales,
-            'Clientes_Predichos': n_predichos,
+            'Clientes_Compraron': n_ventas_hoy,
+            'Clientes_Predichos': n_predicciones_hoy,
             'Precision': precision,
             'Recall': recall,
             'F0.5-score': f05
@@ -145,33 +135,17 @@ def perform_backtesting(config_path):
     metrics_df = pd.DataFrame(records)
     output_file = reports_path / reports_params['backtesting_metrics_file']
     metrics_df.to_csv(output_file, index=False, float_format='%.4f')
-    print(f"\nMétricas de backtesting guardadas en: {output_file}")
-
-    print("\nResumen de Métricas de Backtesting:")
-    print(metrics_df.to_string(index=False, float_format='%.4f')) # Mostrar tabla completa
+    logging.info(f"Métricas de backtesting guardadas en: {output_file}")
+    logging.info(f"Resumen de Métricas de Backtesting por Fecha (Cliente a Cliente):\n{metrics_df.to_string(index=False, float_format='%.4f')}")
 
     # Calcular y mostrar promedios
     mean_precision = metrics_df['Precision'].mean()
     mean_recall = metrics_df['Recall'].mean()
     mean_f05 = metrics_df['F0.5-score'].mean()
     print(f"\nPromedios del Periodo:")
-    print(f"  Precisión Promedio: {mean_precision:.4f}")
-    print(f"  Recall Promedio:    {mean_recall:.4f}")
-    print(f"  F0.5 Promedio:      {mean_f05:.4f}")
-
-    # Opcional: Añadir promedios al metrics.json principal
-    # try:
-    #     with open(reports_path / reports_params['metrics_file'], 'r') as f:
-    #         main_metrics = json.load(f)
-    # except FileNotFoundError:
-    #     main_metrics = {}
-    # main_metrics['backtest_mean_precision'] = mean_precision
-    # main_metrics['backtest_mean_recall'] = mean_recall
-    # main_metrics['backtest_mean_f05'] = mean_f05
-    # with open(reports_path / reports_params['metrics_file'], 'w') as f:
-    #     json.dump(main_metrics, f, indent=4)
-    # print("Promedios de backtesting añadidos a reports/metrics.json")
-
+    print(f" Precisión Promedio: {mean_precision:.4f}")
+    print(f" Recall Promedio: {mean_recall:.4f}")
+    print(f" F0.5 Promedio: {mean_f05:.4f}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

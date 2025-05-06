@@ -2,9 +2,9 @@ Classification Report (Modelo Base - Sin Calibrar)
 ==================================================
               precision    recall  f1-score   support
 
-           0      0.798     0.611     0.692    105587
-           1      0.440     0.665     0.530     48613
+           0      0.795     0.606     0.688    106631
+           1      0.441     0.666     0.531     49849
 
-    accuracy                          0.628    154200
-   macro avg      0.619     0.638     0.611    154200
-weighted avg      0.685     0.628     0.641    154200
+    accuracy                          0.625    156480
+   macro avg      0.618     0.636     0.609    156480
+weighted avg      0.682     0.625     0.638    156480

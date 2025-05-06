@@ -90,8 +90,8 @@ evaluate: # Etapa DVC 'evaluate'
   shap_sample_size: 1000
 
 backtesting: # Etapa DVC 'backtest'
-  backtest_start_date: '2025-05-30'
-  backtest_end_date: '2025-05-02'
+  backtest_start_date: '2025-05-02'
+  backtest_end_date: '2025-05-08'
 
 # --- Sección para el Recomendador Item-Item (Scripts Manuales) ---
 recommendations:
