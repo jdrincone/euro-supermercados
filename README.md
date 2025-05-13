@@ -256,7 +256,7 @@ python3 src/precompute_recommendation_model_clustering.py --config params.yaml
 
 ### 2. Generación de Recomendaciones
 ```bash
-python src/get_recommendations.py \
+python3 src/get_recommendations.py \
   --input_file predictions/predicciones_hoy.csv \
   --output_file recommendations/recomendaciones_para_hoy.csv
 ```

@@ -311,6 +311,7 @@ def main_pipeline(config):
     df_final_recommendations = create_customer_recommendation_df(
         patterns_with_clusters_df, recommendations_map
     )
+    df_final_recommendations = df_final_recommendations.rename(columns={'id_client': 'client'})
 
     save_to_parquet(df_final_recommendations, output_parquet_file)
     print("\nPipeline completado.")

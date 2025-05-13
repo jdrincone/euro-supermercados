@@ -90,7 +90,7 @@ stages:
       - src/backtest.py
       - models/calibrated_model.joblib
       - data/processed/calendar_features.parquet
-      - data/raw/ventas_backtesting_new.csv
+      #- data/raw/ventas_backtesting_new.csv
     params:
       - data.base_path
       - data.raw_folder
