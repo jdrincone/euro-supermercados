@@ -7,17 +7,17 @@ data:
   processed_folder: processed
   sales_file: ventas_completo.csv  # historico de ventas
   products_file: productos.csv
-  output_file: initial_sales_clean.parquet
-  output_columns:
+  output_file: initial_sales_clean.parquet # Este parece ser una salida de una etapa temprana, no directamente usado por el clustering así.
+  output_columns: # Columnas para 'initial_sales_clean.parquet'
     - date_sale
     - identification_doct
     - product
     - amount
     - invoice_value_with_discount_and_without_iva
     - domicilio_status
-  months_to_fetch: 6  # Parámetro
-  last_month_with_sale: 3
-  backtesting_file: ventas_backtesting_new.csv # Cambiar siempre por un nuevo archivo
+  months_to_fetch: 6  # Parámetro general de cuántos datos cargar
+  last_month_with_sale: 3 # Usado para definir el conjunto de entrenamiento/backtesting en el modelo de predicción
+  backtesting_file: ventas_backtesting_new.csv
 
 load_data: # Etapa DVC 'load'
   sales_columns:
@@ -31,7 +31,7 @@ load_data: # Etapa DVC 'load'
   sales_dtype:
     identification_doct: str
     product: str
-  output_columns:
+  output_columns: # Columnas para la salida de esta etapa DVC (initial_sales_clean.parquet)
     - date_sale
     - id_client
     - product
@@ -40,23 +40,23 @@ load_data: # Etapa DVC 'load'
     - domicilio_status
   output_file: initial_sales_clean.parquet # Salida intermedia
 
-preprocess: # Etapa DVC 'preprocess'
+preprocess: # Etapa DVC 'preprocess' (Para el modelo de predicción de compra)
   min_purchase_count: 10
   max_median_days_between: 35
   max_std_days_between: 3
   min_purchase_days_filter: 10
   min_products_filter: 5
-  daily_output_file: daily.parquet # Salida principal de esta etapa
-  recommendation_output_file: filtered_agg_sales_for_rec.parquet # Salida para recomendación
+  daily_output_file: daily.parquet # Salida principal de esta etapa, podría ser entrada para clustering
+  recommendation_output_file: filtered_agg_sales_for_rec.parquet # Salida para recomendación item-item
 
-featurize: # Etapa DVC 'featurize'
-  future_days_offset: 5 # CANTIDAD DE DIAS A PRED en el futuro
+featurize: # Etapa DVC 'featurize' (Para el modelo de predicción de compra)
+  future_days_offset: 5
   quincena_days: [28, 29, 30, 31, 1, 2, 13, 14, 15, 16]
   recency_fillna_days: 9999
   rolling_windows: [1, 3, 7, 15, 30]
-  output_file: calendar_features.parquet # Salida principal
+  output_file: calendar_features.parquet
 
-train: # Etapa DVC 'train'
+train: # Etapa DVC 'train' (Para el modelo de predicción de compra)
   split_days_validation: 30
   features:
     - dow
@@ -83,38 +83,62 @@ model: # Parámetros relacionados al modelo de predicción DVC
   model_name: model.joblib
   calibrated_model_name: calibrated_model.joblib
 
-evaluate: # Etapa DVC 'evaluate'
+evaluate: # Etapa DVC 'evaluate' (Para el modelo de predicción de compra)
   calibration_method: sigmoid
   calibration_bins: 10
-  evaluation_threshold: 0.50 # Umbral para predicción y backtesting
+  evaluation_threshold: 0.50
   shap_sample_size: 1000
 
-backtesting: # Etapa DVC 'backtest'
-  backtest_start_date: '2025-05-02'
+backtesting: # Etapa DVC 'backtest' (Para el modelo de predicción de compra)
+  backtest_start_date: '2025-05-07'
   backtest_end_date: '2025-05-08'
 
 # --- Sección para el Recomendador Item-Item (Scripts Manuales) ---
-recommendations:
-  num_recommendations: 5                # Número de recs a generar/guardar por cliente
+recommendations_item_item: # Renombrado para claridad
+  num_recommendations: 5
   output_folder: recommendations        # Carpeta para guardar las recs finales/precalculadas
   model_folder: recommendation_model_item_item # Carpeta para artefactos del modelo CF
-
-  # --- Archivos de Entrada para Entrenamiento del Recomendador (train_recommender.py) ---
-  transaction_data_processed_file: filtered_agg_sales_for_rec.parquet
-  # El catálogo de productos se toma de data.products_file definido arriba
-
-  # --- Nombres de Archivos para Artefactos Guardados (dentro de model_folder) ---
-  similarity_matrix_file: item_similarity.npz  # Guardaremos como NPZ (disperso)
-  mappings_file: mappings.pkl                  # Diccionarios de mapeo
-  user_item_matrix_file: sparse_user_item.npz  # Matriz User-Item dispersa
-
-  # --- Nombre de Archivo para Recomendaciones Precalculadas (dentro de output_folder) ---
+  transaction_data_processed_file: filtered_agg_sales_for_rec.parquet # Reusa salida de 'preprocess'
+  similarity_matrix_file: item_similarity.npz
+  mappings_file: mappings.pkl
+  user_item_matrix_file: sparse_user_item.npz
   precomputed_recs_file: precomputed_item_item_recs.parquet
-# ------------------------------------------------------------------
 
-reports: # Salidas de etapas DVC 'evaluate' y 'backtest'
+# --- Sección para el Recomendador por Clustering (Adaptado del Notebook) ---
+recommendations_clustering:
+  # --- Archivos de Entrada ---
+  # Se asume que se usará 'data.sales_file' y 'data.products_file' para la carga inicial.
+  # La etapa de filtrado de patrones podría usar 'preprocess.daily_output_file' como base si es adecuado,
+  # o procesar directamente desde 'data.sales_file' como en el script.
+
+  # --- Parámetros de Preprocesamiento y Filtrado para Clustering ---
+  months_recent_activity: 1             # Para filtrar clientes por actividad reciente (equivalente a last_month_filter del script)
+  min_purchase_days_pattern: 10         # Mínimo de días de compra distintos para considerar patrón (equiv. a min_purchase_days)
+  max_median_days_pattern: 35           # Mediana máxima de días entre compras para patrón (equiv. a max_median_days_between_purchases)
+  max_std_days_pattern: 3               # Desviación estándar máxima de días entre compras para patrón (equiv. a max_std_days_between_purchases)
+
+  # --- Parámetros de Clustering ---
+  # random_state_kmeans: se puede tomar de 'base.random_state' (42)
+  n_clusters: 3                         # Número de clusters (basado en tu análisis de silueta/codo del notebook)
+  features_for_clustering:              # Columnas del DataFrame de patrones a usar para K-Means
+    - median_days_between
+    - std_days_between
+    - pay_amount_mean
+    - count_products
+  excluded_product_descriptions:        # Lista de descripciones de productos a excluir de las recomendaciones
+    - 'BOLSA PLASTICA'
+    - 'BOLSA RECUPERADA'
+    - 'MENU EMPLEADOS EURO'
+
+  # --- Parámetros de Generación de Recomendaciones por Cluster ---
+  # num_recommendations_per_cluster: se basa en 'avg_count_products' del cluster_summary (dinámico)
+
+  # --- Archivos de Salida para Recomendaciones por Clustering ---
+  output_folder: recommendations        # Puede ser la misma carpeta que 'recommendations_item_item.output_folder'
+  precomputed_cluster_recs_file: precomputed_cluster_recs.parquet # Nombre del archivo de salida Parquet
+
+reports: # Salidas de etapas DVC 'evaluate' y 'backtest' (del modelo de predicción)
   reports_dir: reports
-  # Salidas de 'evaluate'
   metrics_file: metrics.json
   base_class_report_file: classification_report_base.txt
   calibrated_class_report_file: classification_report_calibrated.txt
@@ -122,5 +146,4 @@ reports: # Salidas de etapas DVC 'evaluate' y 'backtest'
   calibration_plot: calibration_curve.png
   importance_plot: feature_importance.png
   shap_summary_plot: shap_summary.png
-  # Salida de 'backtest'
   backtesting_metrics_file: backtesting_metrics.csv

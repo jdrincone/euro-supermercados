@@ -131,7 +131,7 @@ def train_and_save(config_path):
         config = yaml.safe_load(f)
 
     # --- Rutas ---
-    rec_params = config['recommendations']
+    rec_params = config['recommendations_item_item']
     data_params = config['data']
     transaction_file = Path(data_params['base_path']) / data_params['processed_folder'] / rec_params['transaction_data_processed_file']
     products_file = Path(data_params['base_path']) / data_params['raw_folder'] / data_params['products_file']

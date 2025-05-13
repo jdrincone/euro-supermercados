@@ -12,11 +12,11 @@ CONFIG_FILE="params.yaml"       # Asumiendo que los scripts usan esto por defect
 
 # --- Parámetros específicos ---
 # Define aquí la lista de fechas separadas por espacio DENTRO de las comillas
-TARGET_DATES="2025-05-01" # <--- Variable CORRECTA
-THRESHOLD="0.55" # Umbral
+TARGET_DATES="2025-05-07" # <--- Variable CORRECTA
+THRESHOLD="0.50" # Umbral
 
 # Nombre de archivo de salida más descriptivo
-OUTPUT_FILENAME="predicciones.csv"
+OUTPUT_FILENAME="predicciones_2025_05_07.csv"
 FULL_OUTPUT_FILEPATH="${PREDICTIONS_FOLDER}/${OUTPUT_FILENAME}"
 
 # CORREGIDO: Usa la variable correcta TARGET_DATES
