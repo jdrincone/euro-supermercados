@@ -95,8 +95,8 @@ evaluate: # Etapa DVC 'evaluate' (Para el modelo de predicción de compra)
   shap_sample_size: 1000
 
 backtesting: # Etapa DVC 'backtest' (Para el modelo de predicción de compra)
-  backtest_start_date: '2025-05-09' # Fecha actual es 2025-05-13, estas fechas son para un backtesting en el pasado.
-  backtest_end_date: '2025-05-12'
+  backtest_start_date: '2025-05-13' # Fecha actual es 2025-05-13, estas fechas son para un backtesting en el pasado.
+  backtest_end_date: '2025-05-15'
 
 # --- Sección para el Recomendador Item-Item (Scripts Manuales) ---
 recommendations_item_item:

@@ -5,26 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="feat: update">
-      <change afterPath="$PROJECT_DIR$/src/add_recommendations.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/notebooks/clustering.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dvc.lock" beforeDir="false" afterPath="$PROJECT_DIR$/dvc.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dvc.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/dvc.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/notebooks/clustering.ipynb" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/notebooks/model_probability.ipynb" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/notebooks/model_recommedator.ipynb" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/notebooks/review_predition.ipynb" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/params.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/params.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/reports/backtesting_metrics.csv" beforeDir="false" afterPath="$PROJECT_DIR$/reports/backtesting_metrics.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/classification_report_base.txt" beforeDir="false" afterPath="$PROJECT_DIR$/reports/classification_report_base.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/classification_report_calibrated.txt" beforeDir="false" afterPath="$PROJECT_DIR$/reports/classification_report_calibrated.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/metrics.json" beforeDir="false" afterPath="$PROJECT_DIR$/reports/metrics.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/plots/calibration_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/calibration_curve.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/plots/shap_summary.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/shap_summary.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/run_prediction_date.sh" beforeDir="false" afterPath="$PROJECT_DIR$/run_prediction_date.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/add_cluster_recommendations.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/train_recommender_by_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/train_recommender_by_client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/train_recommender_by_clustering.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/train_recommender_by_clustering.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -249,7 +233,8 @@
       <workItem from="1746722818323" duration="498000" />
       <workItem from="1746931958151" duration="618000" />
       <workItem from="1746932750246" duration="1121000" />
-      <workItem from="1747108706992" duration="22124000" />
+      <workItem from="1747108706992" duration="28661000" />
+      <workItem from="1747247286875" duration="540000" />
     </task>
     <task id="LOCAL-00001" summary="&quot;delete proyect structure&quot;">
       <option name="closed" value="true" />
@@ -331,15 +316,68 @@
       <option name="project" value="LOCAL" />
       <updated>1747114903063</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="feat: update">
+      <option name="closed" value="true" />
+      <created>1747178473586</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1747178473586</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
+    <option name="OPEN_GENERIC_TABS">
+      <map>
+        <entry key="21b3ca93-2c2c-4bb0-a0f5-0baf225e1c23" value="TOOL_WINDOW" />
+      </map>
+    </option>
+    <option name="RECENT_FILTERS">
+      <map>
+        <entry key="Branch">
+          <value>
+            <list>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
+                  <option value="origin/main" />
+                </option>
+              </RecentGroup>
+            </list>
+          </value>
+        </entry>
+      </map>
+    </option>
     <option name="TAB_STATES">
       <map>
+        <entry key="21b3ca93-2c2c-4bb0-a0f5-0baf225e1c23">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="origin/main" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="structure">
+                    <value>
+                      <list>
+                        <option value="dir:/Users/juandavidrincon/Documents/euro/recommendation_model_item_item" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
         <entry key="MAIN">
           <value>
             <State />
