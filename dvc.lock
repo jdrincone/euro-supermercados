@@ -5,8 +5,8 @@ stages:
     deps:
     - path: params.yaml
       hash: md5
-      md5: ab25bf8e275cfa1d65e1c951f91a7933
-      size: 5924
+      md5: d828fbad5ddb3575b6a58c2c974aa131
+      size: 6018
     - path: src/load_data.py
       hash: md5
       md5: f8174b06ae0ec69815d5906218e6ae7a
@@ -14,19 +14,19 @@ stages:
     outs:
     - path: data/processed/initial_sales_clean.parquet
       hash: md5
-      md5: 2ce47b1842c27210dec87bba57084f94
-      size: 90189733
+      md5: 2f5a50865daf61f08b85099fd43bd524
+      size: 89860883
   preprocess:
     cmd: python3 src/preprocess.py --config params.yaml
     deps:
     - path: data/processed/initial_sales_clean.parquet
       hash: md5
-      md5: 2ce47b1842c27210dec87bba57084f94
-      size: 90189733
+      md5: 2f5a50865daf61f08b85099fd43bd524
+      size: 89860883
     - path: params.yaml
       hash: md5
-      md5: ab25bf8e275cfa1d65e1c951f91a7933
-      size: 5924
+      md5: d828fbad5ddb3575b6a58c2c974aa131
+      size: 6018
     - path: src/preprocess.py
       hash: md5
       md5: d31d887bcd8bdff15136df5f26c5dcaa
@@ -34,15 +34,15 @@ stages:
     outs:
     - path: data/processed/daily.parquet
       hash: md5
-      md5: 2252e8146580a009b1d184a930e76504
-      size: 2986985
+      md5: 0332557d98e4f583c6bd73a3dd6b6dee
+      size: 2947650
   featurize:
     cmd: python3 src/featurize.py --config params.yaml
     deps:
     - path: data/processed/daily.parquet
       hash: md5
-      md5: 2252e8146580a009b1d184a930e76504
-      size: 2986985
+      md5: 0332557d98e4f583c6bd73a3dd6b6dee
+      size: 2947650
     - path: src/featurize.py
       hash: md5
       md5: bc2d8d338945607fbc18a88d651a3eab
@@ -76,15 +76,15 @@ stages:
     outs:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 83c18785d152c09d5a69211d646f0ba4
-      size: 5964688
+      md5: 54cadc899317e5de481d2a015a2079ab
+      size: 5902071
   train:
     cmd: python3 src/train.py --config params.yaml
     deps:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 83c18785d152c09d5a69211d646f0ba4
-      size: 5964688
+      md5: 54cadc899317e5de481d2a015a2079ab
+      size: 5902071
     - path: src/train.py
       hash: md5
       md5: 5483dbf2626430817e68946dacd21321
@@ -123,18 +123,18 @@ stages:
     outs:
     - path: models/model.joblib
       hash: md5
-      md5: 5747dbf5221ae092b35a42b4762c079d
+      md5: 714d2ee6ff8b5ce82214d48e4b9767b2
       size: 2161
   evaluate:
     cmd: python3 src/evaluate.py --config params.yaml
     deps:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 83c18785d152c09d5a69211d646f0ba4
-      size: 5964688
+      md5: 54cadc899317e5de481d2a015a2079ab
+      size: 5902071
     - path: models/model.joblib
       hash: md5
-      md5: 5747dbf5221ae092b35a42b4762c079d
+      md5: 714d2ee6ff8b5ce82214d48e4b9767b2
       size: 2161
     - path: src/evaluate.py
       hash: md5
@@ -189,42 +189,42 @@ stages:
     outs:
     - path: models/calibrated_model.joblib
       hash: md5
-      md5: ed52ac2ac5fcee9b56858e9adec24b5a
+      md5: c22c70326ba27a6f5938ec725a50a8fb
       size: 3121
     - path: reports/classification_report_base.txt
       hash: md5
-      md5: fe88208e427a45e5f9502be404227e6c
+      md5: f6c51c2d350aa0597428f3218c51f64b
       size: 428
     - path: reports/classification_report_calibrated.txt
       hash: md5
-      md5: 64443d1ef95f35c6505dc893aea21d46
+      md5: 29580ca50e23ea6489f209117c2b38b0
       size: 439
     - path: reports/metrics.json
       hash: md5
-      md5: 629f4ce50fbd4d666677f3cf945783bd
-      size: 298
+      md5: a80499f5756d3cadc721653a5b51e5e4
+      size: 297
     - path: reports/plots/calibration_curve.png
       hash: md5
-      md5: 3d90d4570d7201da5d5146ff64fe597a
-      size: 49586
+      md5: 64e31d9fc77bd7ee5b191396df3be0fc
+      size: 49366
     - path: reports/plots/feature_importance.png
       hash: md5
-      md5: 4f06f1361dc475e12412ab5e2ef859f1
-      size: 31347
+      md5: 656db506849d4b47799a618fd4cff27e
+      size: 31087
     - path: reports/plots/shap_summary.png
       hash: md5
-      md5: 9e5dc3b902301278c7366722d4aea63a
-      size: 38175
+      md5: f3155a74512c927608e651167b310eba
+      size: 38087
   backtest:
     cmd: python3 src/backtest.py --config params.yaml
     deps:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 83c18785d152c09d5a69211d646f0ba4
-      size: 5964688
+      md5: 54cadc899317e5de481d2a015a2079ab
+      size: 5902071
     - path: models/calibrated_model.joblib
       hash: md5
-      md5: ed52ac2ac5fcee9b56858e9adec24b5a
+      md5: c22c70326ba27a6f5938ec725a50a8fb
       size: 3121
     - path: src/backtest.py
       hash: md5
@@ -233,8 +233,8 @@ stages:
     params:
       params.yaml:
         backtesting:
-          backtest_start_date: '2025-05-09'
-          backtest_end_date: '2025-05-12'
+          backtest_start_date: '2025-05-14'
+          backtest_end_date: '2025-05-16'
         data.backtesting_file: ventas_backtesting_new.csv
         data.base_path: data
         data.processed_folder: processed
@@ -260,5 +260,5 @@ stages:
     outs:
     - path: reports/backtesting_metrics.csv
       hash: md5
-      md5: fc06d12fc874f927305806d44e07c4b5
-      size: 294
+      md5: 3a0cd37a697478b05a2e26b3b90e9f6c
+      size: 234

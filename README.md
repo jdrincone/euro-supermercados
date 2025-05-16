@@ -80,6 +80,9 @@ Los conteos por ventana se calculan con un *rolling window* desplazado una fila 
 ## 🎯 Sistema de Recomendación
 
 Este proyecto cuenta con dos enfoques para la recomendación de productos:
+### 0. Recomendación base histórico del cliente (`recommendations based on recent purchase history`)
+- Del total de productos distintos comprados por los clientes predichos, se toman el 25% de estos, que más
+  han sido comprados por el cliente.
 
 ### 1. Filtrado Colaborativo Item-Item (`recommendations_item_item`)
 
@@ -203,9 +206,12 @@ dvc repro
 Para generar predicciones de compra para una o varias fechas:
 
 ```bash
-python3 src/predict.py --dates 2025-05-05 2025-05-06
+python3 src/predict.py --dates 2025-05-08 2025-05-09 2025-05-10 2025-05-11
 ```
-
+Una fecha particular
+```bash
+python3 src/predict.py --dates 2025-05-10 --output pred_10_mayo.csv
+```
 Opciones adicionales:
 - `--threshold`: Umbral de probabilidad (default: 0.5)
 - `--output`: Nombre del archivo de salida
@@ -222,7 +228,7 @@ Opciones adicionales:
 
 
 ### BackTesting
-En params.yaml ajustar las fewchas de prueba (Fecha después)
+En params.yaml ajustar las fechas de prueba (Fecha después)
 ```bash
 backtesting: # Etapa DVC 'backtest'
   backtest_start_date: '2025-05-02'
@@ -237,7 +243,7 @@ python3 src/backtest.py --config params.yaml
 
 
 
-## 🎯 Sistema de Recomendación
+## 🎯 Sistema de Recomendación alternos y para posteriores experimentos
 
 ### 1. Entrenamiento del Recomendador por items-items
 #### En caso de predecir basado en el 10% de productos top
