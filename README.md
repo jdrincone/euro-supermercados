@@ -79,27 +79,64 @@ Los conteos por ventana se calculan con un *rolling window* desplazado una fila 
 
 ## 🎯 Sistema de Recomendación
 
-### Filtrado Colaborativo Item-Item
-- **Alcance**: Últimos 3 de compras
+Este proyecto cuenta con dos enfoques para la recomendación de productos:
+### 0. Recomendación base histórico del cliente (`recommendations based on recent purchase history`)
+- Del total de productos distintos comprados por los clientes predichos, se toman el 25% de estos, que más
+  han sido comprados por el cliente.
+
+### 1. Filtrado Colaborativo Item-Item (`recommendations_item_item`)
+
+- **Alcance**: Últimos 3 meses de compras (configurable vía `data.last_month_with_sale` y `data.months_to_fetch` en `params.yaml`).
 - **Filtrado de Productos**:
-  - Exclusión de productos específicos (ej: bolsas, transporte)
-  - a. Selección basada en frecuencia de compra global se toma
-       el 10% de los productos top comprados en los últimos 3 meses.
+  - Exclusión de productos específicos (ej: bolsas, transporte, configurado en `params.yaml`).
+  - a. Selección basada en frecuencia de compra global: se toma el 10% de los productos top comprados en los últimos 3 meses.
   - b. Selección basada en el top 5 de productos por cliente.
 
-### Proceso de Recomendación
+#### Proceso de Recomendación Item-Item
 1. **Entrenamiento (Offline)**
-   - Cálculo de matriz de similitud item-item
-   - Pre-cálculo de recomendaciones para todos los clientes
-   - Almacenamiento de mapeos y matrices
+   - Se ejecuta `src/train_recommender.py` o `src/train_recommender_by_client.py`.
+   - Cálculo de matriz de similitud item-item.
+   - Pre-cálculo de recomendaciones para todos los clientes.
+   - Almacenamiento de mapeos y matrices (configurado en `params.yaml` bajo `recommendations_item_item`).
 
-2. **Generación (Online)**
-   - Búsqueda rápida de recomendaciones pre-calculadas
-   - Filtrado por clientes con alta probabilidad de compra
-   - Unión con información de productos
+2. **Generación (Online/Batch)**
+   - Se ejecuta `src/get_recommendations.py`.
+   - Búsqueda rápida de recomendaciones pre-calculadas.
+   - Filtrado por clientes con alta probabilidad de compra (provenientes del modelo predictivo).
+   - Unión con información de productos.
 
+### 2. Recomendación Basada en Clustering de Clientes (`recommendations_clustering`)
 
-### Backtesting
+Este sistema segmenta a los clientes según sus patrones de compra y recomienda los productos más populares dentro de cada segmento.
+
+- **Criterios de Filtrado para Clustering**:
+    - Actividad reciente: Clientes con compras en los últimos N meses (`recommendations_clustering.months_recent_activity`).
+    - Patrones de compra:
+        - Mínimo de días de compra distintos (`recommendations_clustering.min_purchase_days_pattern`).
+        - Mediana máxima de días entre compras (`recommendations_clustering.max_median_days_pattern`).
+        - Desviación estándar máxima de días entre compras (`recommendations_clustering.max_std_days_pattern`).
+- **Características de Clustering**:
+    - Basado en métricas como mediana y desviación estándar de días entre compras, monto promedio de pago y cantidad de productos únicos comprados (configurable en `recommendations_clustering.features_for_clustering`).
+- **Algoritmo**: K-Means.
+- **Número de Clusters**: Configurable (`recommendations_clustering.n_clusters`), idealmente basado en análisis como el método del codo o silueta.
+- **Filtrado de Productos para Recomendación**:
+  - Exclusión de productos específicos (ej: bolsas, menú empleados, configurable en `recommendations_clustering.excluded_product_descriptions`).
+
+#### Proceso de Recomendación por Clustering
+1. **Preprocesamiento y Segmentación (Offline/Batch)**
+   - Se ejecuta `src/train_recommender_by_clustering.py` (o el nombre que le hayas dado al script modularizado, ej. `recommender_pipeline.py`).
+   - Carga de datos de ventas y productos.
+   - Filtrado de clientes por actividad y patrones de compra.
+   - Aplicación de K-Means para segmentar a los clientes.
+   - Identificación de los productos más populares (descripciones) para cada clúster.
+   - Guardado de las recomendaciones precalculadas por cliente en un archivo Parquet (`recommendations_clustering.precomputed_cluster_recs_file`).
+
+2. **Generación (Online/Batch para combinar con predicción de compra)**
+   - Se pueden tomar las predicciones de compra del modelo predictivo.
+   - Para los clientes con alta probabilidad de compra, se buscan sus recomendaciones precalculadas del archivo Parquet generado en el paso anterior.
+   - Unión con información de productos si es necesario mostrar detalles adicionales.
+
+### Backtesting (Modelo Predictivo)
 - Evaluación diaria en período histórico
 - Métricas por fecha
 - Umbral de evaluación configurable
@@ -109,7 +146,8 @@ Los conteos por ventana se calculan con un *rolling window* desplazado una fila 
 ### Prerrequisitos
 - Python 3.11+
 - Git
-- DVC
+- DVC (Opcional, si se usa para versionado de datos/modelos)
+
 
 ### Instalación
 1. **Clonar el repositorio**
@@ -168,9 +206,12 @@ dvc repro
 Para generar predicciones de compra para una o varias fechas:
 
 ```bash
-python3 src/predict.py --dates 2025-05-05 2025-05-06
+python3 src/predict.py --dates 2025-05-08 2025-05-09 2025-05-10 2025-05-11
 ```
-
+Una fecha particular
+```bash
+python3 src/predict.py --dates 2025-05-10 --output pred_10_mayo.csv
+```
 Opciones adicionales:
 - `--threshold`: Umbral de probabilidad (default: 0.5)
 - `--output`: Nombre del archivo de salida
@@ -187,7 +228,7 @@ Opciones adicionales:
 
 
 ### BackTesting
-En params.yaml ajustar las fewchas de prueba (Fecha después)
+En params.yaml ajustar las fechas de prueba (Fecha después)
 ```bash
 backtesting: # Etapa DVC 'backtest'
   backtest_start_date: '2025-05-02'
@@ -202,9 +243,9 @@ python3 src/backtest.py --config params.yaml
 
 
 
-## 🎯 Sistema de Recomendación
+## 🎯 Sistema de Recomendación alternos y para posteriores experimentos
 
-### 1. Entrenamiento del Recomendador
+### 1. Entrenamiento del Recomendador por items-items
 #### En caso de predecir basado en el 10% de productos top
 ```bash
 python3 src/train_recommender.py --config params.yaml
@@ -212,12 +253,16 @@ python3 src/train_recommender.py --config params.yaml
 
 #### En caso de predecir basado en el top 5 de productos por cliente
 ```bash
-python3 src/train_recommender_by_client.py --config params.yaml
+python3 src/train_recommendarion_model_by_client.py --config params.yaml
+```
+#### En caso de predecir por clustering
+```bash
+python3 src/precompute_recommendation_model_clustering.py --config params.yaml
 ```
 
 ### 2. Generación de Recomendaciones
 ```bash
-python src/get_recommendations.py \
+python3 src/get_recommendations.py \
   --input_file predictions/predicciones_hoy.csv \
   --output_file recommendations/recomendaciones_para_hoy.csv
 ```

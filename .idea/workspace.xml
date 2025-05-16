@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="feat: update" />
+    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="feat: refactor" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -53,7 +53,7 @@
     "Python.survival.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "8-modelo-de-recomendación-por-historia-de-usuario",
     "last_opened_file_path": "/Users/juandavidrincon/Documents/euro/data/raw",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -70,9 +70,9 @@
       <recent name="$PROJECT_DIR$/data" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/notebooks" />
       <recent name="$PROJECT_DIR$/notebooks/garbages" />
       <recent name="$PROJECT_DIR$/data/processed" />
-      <recent name="$PROJECT_DIR$/notebooks" />
     </key>
   </component>
   <component name="RunManager" selected="Python.gemini">
@@ -223,6 +223,15 @@
       <workItem from="1746316454307" duration="3794000" />
       <workItem from="1746321428308" duration="4940000" />
       <workItem from="1746362595552" duration="11042000" />
+      <workItem from="1746577179124" duration="705000" />
+      <workItem from="1746626414622" duration="2827000" />
+      <workItem from="1746722818323" duration="498000" />
+      <workItem from="1746931958151" duration="618000" />
+      <workItem from="1746932750246" duration="1121000" />
+      <workItem from="1747108706992" duration="28661000" />
+      <workItem from="1747247286875" duration="540000" />
+      <workItem from="1747318327316" duration="18057000" />
+      <workItem from="1747429015838" duration="1982000" />
     </task>
     <task id="LOCAL-00001" summary="&quot;delete proyect structure&quot;">
       <option name="closed" value="true" />
@@ -288,15 +297,108 @@
       <option name="project" value="LOCAL" />
       <updated>1746507189636</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="feat: update">
+      <option name="closed" value="true" />
+      <created>1746507860792</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1746507860792</updated>
+    </task>
+    <task id="LOCAL-00010" summary="feat: update">
+      <option name="closed" value="true" />
+      <created>1747114903063</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1747114903063</updated>
+    </task>
+    <task id="LOCAL-00011" summary="feat: update">
+      <option name="closed" value="true" />
+      <created>1747178473586</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1747178473586</updated>
+    </task>
+    <task id="LOCAL-00012" summary="feat: prediciones 2025-05-15">
+      <option name="closed" value="true" />
+      <created>1747319175104</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1747319175104</updated>
+    </task>
+    <task id="LOCAL-00013" summary="feat: prediciones 2025-05-16">
+      <option name="closed" value="true" />
+      <created>1747429212205</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1747429212205</updated>
+    </task>
+    <task id="LOCAL-00014" summary="feat: refactor">
+      <option name="closed" value="true" />
+      <created>1747430980031</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1747430980031</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
+    <option name="OPEN_GENERIC_TABS">
+      <map>
+        <entry key="21b3ca93-2c2c-4bb0-a0f5-0baf225e1c23" value="TOOL_WINDOW" />
+      </map>
+    </option>
+    <option name="RECENT_FILTERS">
+      <map>
+        <entry key="Branch">
+          <value>
+            <list>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
+                  <option value="origin/main" />
+                </option>
+              </RecentGroup>
+            </list>
+          </value>
+        </entry>
+      </map>
+    </option>
     <option name="TAB_STATES">
       <map>
+        <entry key="21b3ca93-2c2c-4bb0-a0f5-0baf225e1c23">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="origin/main" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="structure">
+                    <value>
+                      <list>
+                        <option value="dir:/Users/juandavidrincon/Documents/euro/recommendation_model_item_item" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
         <entry key="MAIN">
           <value>
             <State />
@@ -311,7 +413,10 @@
     <MESSAGE value="feat: conetion to api." />
     <MESSAGE value="docs: update" />
     <MESSAGE value="feat: update" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: update" />
+    <MESSAGE value="feat: prediciones 2025-05-15" />
+    <MESSAGE value="feat: prediciones 2025-05-16" />
+    <MESSAGE value="feat: refactor" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: refactor" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/euro$survival.coverage" NAME="survival Coverage Results" MODIFIED="1746102202454" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/notebooks" />

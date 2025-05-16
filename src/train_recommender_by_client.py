@@ -69,60 +69,32 @@ def calculate_item_similarity(sparse_user_item):
         print(f"Error calculando similitud: {e}")
         return None
 
-def get_recs_for_client(client_idx, client_str_id, sparse_user_item_matrix, similarity_matrix,
-                         product_idx_to_str, n_recs):
-    """Genera recomendaciones para un solo cliente."""
-    recommendations = {} # {product_idx: score}
-    if client_idx >= sparse_user_item_matrix.shape[0]: return []
+def get_top_n_recommendations(client_idx, sparse_user_item_matrix, similarity_matrix, n=10):
+    """Obtiene las N recomendaciones principales para un cliente."""
+    if client_idx >= sparse_user_item_matrix.shape[0]:
+        return []
 
-    client_purchases_sparse = sparse_user_item_matrix[client_idx, :]
-    purchased_product_indices = client_purchases_sparse.indices
-    purchase_values = client_purchases_sparse.data
+    client_purchases = sparse_user_item_matrix[client_idx, :]
+    purchased_items_indices = client_purchases.indices
+    purchase_values = client_purchases.data
 
-    if len(purchased_product_indices) == 0: return []
+    if len(purchased_items_indices) == 0:
+        return []
 
-    # Pre-filtrar índices de productos comprados que sean válidos en la matriz de similitud
-    valid_purchased_indices = [idx for idx in purchased_product_indices if idx < similarity_matrix.shape[0]]
-    if not valid_purchased_indices: return []
+    scores = {}
+    for i, item_index in enumerate(purchased_items_indices):
+        if item_index >= similarity_matrix.shape[0]:
+            continue
+        similarity_row = similarity_matrix[item_index].toarray().flatten()
+        for j, similar_item_score in enumerate(similarity_row):
+            if j != item_index and j not in purchased_items_indices and similar_item_score > 0:
+                scores[j] = scores.get(j, 0) + similar_item_score * purchase_values[i]
 
-    # Obtener las filas de similitud relevantes de una vez (puede ser más eficiente)
-    relevant_sim_rows = similarity_matrix[valid_purchased_indices, :]
-
-    # Iterar sobre los índices válidos y sus valores correspondientes
-    for i, purchased_idx in enumerate(valid_purchased_indices):
-        # Encontrar el valor de compra correspondiente (puede requerir buscar el índice original)
-        original_index_pos = np.where(purchased_product_indices == purchased_idx)[0][0]
-        purchase_count = purchase_values[original_index_pos]
-
-        # Obtener la fila de similitud ya extraída
-        sim_row = relevant_sim_rows[i, :].toarray().flatten()
-
-        for similar_item_idx, similarity_score in enumerate(sim_row):
-            if similar_item_idx >= similarity_matrix.shape[1]: continue # Verificar índice
-
-            if similar_item_idx != purchased_idx and similarity_score > 0:
-                 # Usar el set de índices válidos para la comprobación
-                if similar_item_idx not in valid_purchased_indices:
-                    current_score = recommendations.get(similar_item_idx, 0)
-                    recommendations[similar_item_idx] = current_score + (similarity_score * purchase_count)
-
-    sorted_recs_idx = sorted(recommendations.items(), key=lambda item: item[1], reverse=True)
-
-    final_recs_list = []
-    for product_idx, score in sorted_recs_idx:
-         product_str = product_idx_to_str.get(product_idx)
-         if product_str:
-             final_recs_list.append({
-                 'client': client_str_id,
-                 'recommended_product': product_str,
-                 'recommendation_score': score
-             })
-         if len(final_recs_list) >= n_recs: break
-    return final_recs_list
-
+    ranked_recommendations = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return [item_index for item_index, _ in ranked_recommendations[:n]]
 
 def train_and_save(config_path):
-    """Carga datos, filtra productos y fecha, entrena CF Item-Item, precalcula y guarda."""
+    """Carga datos, filtra productos y fecha, entrena CF Item-Item, precalcula y guarda recomendaciones como lista de nombres de productos."""
     start_time = time.time()
     print("--- Iniciando Entrenamiento y Pre-cálculo del Recomendador Item-Item ---")
     print("--- Filtros aplicados: Top 5 productos por cliente (último mes) ---")
@@ -131,10 +103,10 @@ def train_and_save(config_path):
         config = yaml.safe_load(f)
 
     # --- Rutas ---
-    rec_params = config['recommendations']
+    rec_params = config['recommendations_item_item']
     data_params = config['data']
     transaction_file = Path(data_params['base_path']) / data_params['processed_folder'] / rec_params['transaction_data_processed_file']
-    products_file = Path(data_params['base_path']) / data_params['raw_folder'] / data_params['products_file']
+    products_file_path = Path(data_params['base_path']) / data_params['raw_folder'] / data_params['products_file'] # Ruta al archivo de productos
     model_dir = Path(rec_params['model_folder'])
     output_dir = Path(rec_params['output_folder'])
     similarity_file = model_dir / rec_params['similarity_matrix_file']
@@ -149,7 +121,7 @@ def train_and_save(config_path):
     # --- Cargar Datos ---
     print(f"\nCargando TODAS las transacciones desde: {transaction_file}")
     transactions_df_full = pd.read_parquet(transaction_file)
-    transactions_df_full.rename(columns={'id_client': 'client', # Asume que ya se llaman así
+    transactions_df_full.rename(columns={'id_client': 'client',
                                          'product': 'product',
                                          'date_sale': 'date'}, inplace=True)
 
@@ -170,17 +142,11 @@ def train_and_save(config_path):
     # --- FILTRADO DE TOP 5 PRODUCTOS POR CLIENTE ---
     print("\nSeleccionando el top 5 de productos comprados por cada cliente en el último mes...")
     if not transactions_last_month.empty:
-        # Calcular la frecuencia de compra de cada producto por cliente
         client_product_counts = transactions_last_month.groupby(['client', 'product']).size().reset_index(name='purchase_count')
-
-        # Ordenar los productos por frecuencia de compra dentro de cada cliente
         client_product_counts_sorted = client_product_counts.sort_values(['client', 'purchase_count'], ascending=[True, False])
-
-        # Seleccionar los 5 productos principales por cliente
         top_5_products_per_client = client_product_counts_sorted.groupby('client').head(5).reset_index(drop=True)
         print(f"Número de interacciones cliente-producto después del filtro de top 5: {len(top_5_products_per_client)}")
 
-        # Fusionar con las transacciones originales del último mes para mantener la información de la fecha (aunque ahora solo tendremos el último mes)
         transactions_df_filtered = pd.merge(transactions_last_month[['client', 'product', 'date']],
                                                top_5_products_per_client[['client', 'product']],
                                                on=['client', 'product'],
@@ -197,7 +163,6 @@ def train_and_save(config_path):
     # ----------------------------------
 
     # --- Crear Matriz User-Item (con datos filtrados) ---
-    # Pasamos el DF filtrado final
     sparse_user_item, mappings = create_sparse_matrix(transactions_df_filtered)
     if sparse_user_item is None:
         print("Matriz Usuario-Item no pudo ser creada con datos filtrados.")
@@ -209,37 +174,44 @@ def train_and_save(config_path):
         print("Matriz de Similitud no pudo ser calculada.")
         return
 
-    # --- Generar Recomendaciones para TODOS los clientes (activos en el último mes con top 5 productos) ---
-    print(f"\nGenerando {num_recommendations} recomendaciones para los {len(mappings['user_map_inv'])} clientes activos...")
-    all_recommendations_list = []
-    total_clients = len(mappings['user_map_inv'])
-    processed_clients = 0
+    # --- Cargar Datos de Productos para Mapeo ID a Nombre ---
+    print(f"\nCargando datos de productos desde: {products_file_path}")
+    try:
+        productos_df = pd.read_csv(
+            products_file_path,
+            dtype={"codigo_unico": str}
+        ).rename(columns={"codigo_unico": "product", "description": "product_name"})
+        productos_df = productos_df.loc[:, ["product", "product_name"]].drop_duplicates("product")
+        productos_df['product'] = productos_df['product'].str.strip()
+        product_name_map = productos_df.set_index('product')['product_name'].to_dict()
+    except FileNotFoundError:
+        print(f"Error: No se encontró el archivo de productos en: {products_file_path}. Las recomendaciones contendrán IDs en lugar de nombres.")
+        product_name_map = {}
 
-    # Iterar usando los mapeos generados a partir de los datos filtrados
+    # --- Generar Recomendaciones y Formatear para Guardar ---
+    print(f"\nGenerando {num_recommendations} recomendaciones para los {len(mappings['user_map'])} clientes activos...")
+    recommendation_list = []
     for client_str_id, client_idx in mappings['user_map_inv'].items():
-        recs = get_recs_for_client(
-            client_idx, client_str_id, sparse_user_item, item_similarity,
-            mappings['product_map'], num_recommendations
+        recommended_item_indices = get_top_n_recommendations(
+            client_idx, sparse_user_item, item_similarity, n=num_recommendations
         )
-        all_recommendations_list.extend(recs)
+        recommended_products_names = []
+        for item_index in recommended_item_indices:
+            product_id = mappings['product_map'].get(item_index)
+            if product_id:
+                product_name = product_name_map.get(product_id, product_id) # Usa ID si no encuentra el nombre
+                recommended_products_names.append(product_name)
 
-        processed_clients += 1
-        if processed_clients % 500 == 0 or processed_clients == total_clients:
-             print(f"  Recomendaciones generadas para {processed_clients}/{total_clients} clientes...")
+        recommendation_list.append({
+            'client': client_str_id,
+            'recommended_products': recommended_products_names
+        })
 
-    all_clients_recommendations_df = pd.DataFrame(all_recommendations_list)
-    if not all_clients_recommendations_df.empty:
-        all_clients_recommendations_df['recommendation_rank'] = all_clients_recommendations_df.groupby('client')['recommendation_score'].rank(method='first', ascending=False).astype(int)
-        all_clients_recommendations_df = all_clients_recommendations_df.sort_values(['client', 'recommendation_rank'])
-        print(f"\nSe generaron {len(all_clients_recommendations_df)} filas de recomendación en total (filtro de top 5 aplicado).")
-    else:
-        print("\nAdvertencia: No se generaron recomendaciones.")
-
+    recommendations_df_to_save = pd.DataFrame(recommendation_list)
 
     # --- Guardar Artefactos ---
     print("\nGuardando artefactos del modelo y recomendaciones pre-calculadas...")
     try:
-        # Solo guardar si las matrices no son None
         if item_similarity is not None:
              save_npz(similarity_file, item_similarity)
              print(f"  - Matriz de similitud guardada en: {similarity_file}")
@@ -256,9 +228,9 @@ def train_and_save(config_path):
              print(f"  - Matriz User-Item (filtrada) guardada en: {user_item_file}")
         else: print("  - No se guardó matriz User-Item.")
 
-        if not all_clients_recommendations_df.empty:
-            all_clients_recommendations_df.to_parquet(precomputed_recs_file, index=False)
-            print(f"  - Recomendaciones pre-calculadas (filtradas) guardadas en: {precomputed_recs_file}")
+        if not recommendations_df_to_save.empty:
+            recommendations_df_to_save.to_parquet(precomputed_recs_file, index=False)
+            print(f"  - Recomendaciones pre-calculadas (lista de nombres) guardadas en: {precomputed_recs_file}")
         else:
             print("  - No se guardó archivo de recomendaciones pre-calculadas (estaba vacío).")
 
