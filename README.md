@@ -2,8 +2,8 @@
 
 Este proyecto implementa un sistema de recomendación y predicción de compras utilizando técnicas de Machine Learning.
 El sistema combina un modelo predictivo para identificar clientes con alta probabilidad de
-compra dada una fecha del futuro, con un sistema de recomendación basado en filtrado colaborativo item-item.
-
+compra dada una fecha del futuro, con un sistema de recomendación basado en la historia de compras
+del cliente en el último mes.
 ## 🎯 Objetivos
 - **Predecir**, Dada un fecha, calcular la probabilidad que un cliente realice una compra.  
 - **Recomendar** los productos más adecuados a los clientes con alta probabilidad de compra.
