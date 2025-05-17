@@ -33,13 +33,14 @@ def preprocess_sales(config_path):
 
     # --- Filtrado por Patrones de Compra ---
     print("Calculando y filtrando por patrones de compra...")
-    daily_purchases = df_recent.drop_duplicates(subset=['id_client', 'date_sale'])[['id_client', 'date_sale']]
+    daily_purchases = df_recent.drop_duplicates(subset=['id_client', 'date_sale'])[['id_client', 'date_sale', "product"]]
     daily_purchases = daily_purchases.sort_values(['id_client', 'date_sale'])
     daily_purchases['days_between_purchases'] = daily_purchases.groupby('id_client')['date_sale'].diff().dt.days
     patterns = daily_purchases.groupby('id_client').agg(
         last_purchase_date=('date_sale', 'max'),
         first_purchase_date=('date_sale', 'min'),
         purchase_days_count=('date_sale', 'nunique'),
+        product_distinct_count=('product', 'nunique'),
         avg_days_between=('days_between_purchases', 'mean'),
         median_days_between=('days_between_purchases', 'median'),
         std_days_between=('days_between_purchases', 'std')
@@ -48,12 +49,14 @@ def preprocess_sales(config_path):
     min_purchase_count = preprocess_params['min_purchase_count']
     max_median_days = preprocess_params['max_median_days_between']
     max_std_days = preprocess_params['max_std_days_between']
+    min_products_filter =preprocess_params['min_products_filter']
 
     patterns_filtered = patterns[patterns['purchase_days_count'] >= min_purchase_count].copy()
     print(f"Clientes con >= {min_purchase_count} días de compra: {len(patterns_filtered)}")
     patterns_filtered = patterns_filtered[patterns_filtered["median_days_between"] < max_median_days]
     print(f"Clientes con mediana <= {max_median_days} días entre compras: {len(patterns_filtered)}")
     patterns_filtered = patterns_filtered[patterns_filtered["std_days_between"] <= max_std_days]
+    patterns_filtered = patterns_filtered[patterns_filtered["product_distinct_count"] >= min_products_filter]
     print(f"Clientes con std <= {max_std_days} días entre compras: {len(patterns_filtered)}")
 
     df_filtered_pattern = df_recent[df_recent["id_client"].isin(patterns_filtered["id_client"])]
