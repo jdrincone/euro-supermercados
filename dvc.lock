@@ -29,20 +29,20 @@ stages:
       size: 6018
     - path: src/preprocess.py
       hash: md5
-      md5: d31d887bcd8bdff15136df5f26c5dcaa
-      size: 4978
+      md5: 356da84ba060cd119c1134d6c17308eb
+      size: 5220
     outs:
     - path: data/processed/daily.parquet
       hash: md5
-      md5: 0332557d98e4f583c6bd73a3dd6b6dee
-      size: 2947650
+      md5: 158af2129dcae20dbeda47d37f0086da
+      size: 2935222
   featurize:
     cmd: python3 src/featurize.py --config params.yaml
     deps:
     - path: data/processed/daily.parquet
       hash: md5
-      md5: 0332557d98e4f583c6bd73a3dd6b6dee
-      size: 2947650
+      md5: 158af2129dcae20dbeda47d37f0086da
+      size: 2935222
     - path: src/featurize.py
       hash: md5
       md5: bc2d8d338945607fbc18a88d651a3eab
@@ -76,15 +76,15 @@ stages:
     outs:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 54cadc899317e5de481d2a015a2079ab
-      size: 5902071
+      md5: 468dd4a198b60f3d0e470c91b276b593
+      size: 5862289
   train:
     cmd: python3 src/train.py --config params.yaml
     deps:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 54cadc899317e5de481d2a015a2079ab
-      size: 5902071
+      md5: 468dd4a198b60f3d0e470c91b276b593
+      size: 5862289
     - path: src/train.py
       hash: md5
       md5: 5483dbf2626430817e68946dacd21321
@@ -123,18 +123,18 @@ stages:
     outs:
     - path: models/model.joblib
       hash: md5
-      md5: 714d2ee6ff8b5ce82214d48e4b9767b2
+      md5: c0eac0ae07b627e64a5508597f4b8801
       size: 2161
   evaluate:
     cmd: python3 src/evaluate.py --config params.yaml
     deps:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 54cadc899317e5de481d2a015a2079ab
-      size: 5902071
+      md5: 468dd4a198b60f3d0e470c91b276b593
+      size: 5862289
     - path: models/model.joblib
       hash: md5
-      md5: 714d2ee6ff8b5ce82214d48e4b9767b2
+      md5: c0eac0ae07b627e64a5508597f4b8801
       size: 2161
     - path: src/evaluate.py
       hash: md5
@@ -189,42 +189,42 @@ stages:
     outs:
     - path: models/calibrated_model.joblib
       hash: md5
-      md5: c22c70326ba27a6f5938ec725a50a8fb
+      md5: 5ac282ccc6d4eb8c588f016a88b9a02b
       size: 3121
     - path: reports/classification_report_base.txt
       hash: md5
-      md5: f6c51c2d350aa0597428f3218c51f64b
+      md5: bfa052274d31ad6291244958c5dcd3a1
       size: 428
     - path: reports/classification_report_calibrated.txt
       hash: md5
-      md5: 29580ca50e23ea6489f209117c2b38b0
+      md5: 990b67edd802f3155f7f41f177df98a8
       size: 439
     - path: reports/metrics.json
       hash: md5
-      md5: a80499f5756d3cadc721653a5b51e5e4
-      size: 297
+      md5: 7fbeea518a725a2550dc03bfe452b32a
+      size: 296
     - path: reports/plots/calibration_curve.png
       hash: md5
-      md5: 64e31d9fc77bd7ee5b191396df3be0fc
-      size: 49366
+      md5: 52cfb3052adc1762f8f198999e2d0f76
+      size: 49391
     - path: reports/plots/feature_importance.png
       hash: md5
-      md5: 656db506849d4b47799a618fd4cff27e
-      size: 31087
+      md5: 8fce9715c366405463137458e5644c02
+      size: 31083
     - path: reports/plots/shap_summary.png
       hash: md5
-      md5: f3155a74512c927608e651167b310eba
-      size: 38087
+      md5: f564de6bab8467055b30db798c8f2bab
+      size: 38398
   backtest:
     cmd: python3 src/backtest.py --config params.yaml
     deps:
     - path: data/processed/calendar_features.parquet
       hash: md5
-      md5: 54cadc899317e5de481d2a015a2079ab
-      size: 5902071
+      md5: 468dd4a198b60f3d0e470c91b276b593
+      size: 5862289
     - path: models/calibrated_model.joblib
       hash: md5
-      md5: c22c70326ba27a6f5938ec725a50a8fb
+      md5: 5ac282ccc6d4eb8c588f016a88b9a02b
       size: 3121
     - path: src/backtest.py
       hash: md5
@@ -260,5 +260,5 @@ stages:
     outs:
     - path: reports/backtesting_metrics.csv
       hash: md5
-      md5: 3a0cd37a697478b05a2e26b3b90e9f6c
-      size: 234
+      md5: 8b1d252987c663d0bed7702cf518b2d5
+      size: 242

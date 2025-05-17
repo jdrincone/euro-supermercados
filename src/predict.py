@@ -200,8 +200,6 @@ def save_predictions(final_predictions_df: pd.DataFrame, output_file_path: Path)
     try:
         final_predictions_df.to_csv(output_file_path, index=False, float_format='%.4f')
         print("Predicciones guardadas exitosamente.")
-        print("\nVista previa de las predicciones:")
-        print(final_predictions_df.head().to_string(index=False))
     except Exception as e:
         print(f"Error al guardar el archivo de salida: {e}")
         raise
