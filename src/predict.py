@@ -4,6 +4,7 @@ from pathlib import Path
 import argparse
 from datetime import datetime, timedelta
 import joblib
+import math
 import os
 from dotenv import load_dotenv
 
@@ -130,53 +131,58 @@ def filter_excluded_products(df_ventas: pd.DataFrame, config: dict) -> pd.DataFr
     df_ventas = df_ventas[~df_ventas['description'].isin(excluded_products)]
     return df_ventas
 
-def get_top_n_percent_products(group: pd.DataFrame, percentile: float = 0.25) -> pd.DataFrame:
-    """Gets the top percentile of products based on relative frequency."""
-    n = max(1, int(len(group) * percentile))  # al menos 1
-    return group.head(n)
+def top_pct(group: pd.DataFrame, top_percentile: float = 0.75) -> pd.DataFrame:
+    """Gets the  top_percentile of products based on relative frequency."""
+    k = math.ceil(len(group) * top_percentile)
+    return group.head(k)
 
 def generate_product_recommendations(
         df_ventas: pd.DataFrame,
         predicted_clients: pd.Series,
-        recommendation_months: int = 1,
-        top_percentile: float = 0.25) -> pd.DataFrame:
+        recommendation_months: int = 1) -> pd.DataFrame:
     """Generates product recommendations based on recent purchase history."""
+
     last_months_ago = datetime.now().date() - timedelta(days=recommendation_months * 30)
     recent_purchases = df_ventas[df_ventas["date_sale"].dt.date >= last_months_ago]
     recent_purchases_predicted = recent_purchases[recent_purchases["client"].isin(predicted_clients)]
 
-    if recent_purchases_predicted.empty:
-        print("No hay compras recientes para los clientes predichos.")
-        return pd.DataFrame({'client': predicted_clients, 'recommended_products': 'Sin recomendaciones recientes'})
 
-    # Calcular frecuencia relativa de productos comprados por cliente
-    freq = (
-        recent_purchases_predicted.groupby(['client', 'description'])
+    cant_compras_client = (
+        recent_purchases_predicted
+        .groupby(["client", "description"])
         .size()
-        .groupby(level=0)
-        .transform(lambda x: x / x.sum())
-        .reset_index(name='rel_freq')
-    )
-
-    # Ordenar por cliente y frecuencia relativa descendente
-    freq_sorted = freq.sort_values(['client', 'rel_freq'], ascending=[True, False])
-
-    # Obtener el top percentile de productos más frecuentes por cliente
-    top_products = freq_sorted.groupby('client', group_keys=False).apply(
-        get_top_n_percent_products,
-        percentile=top_percentile)
-
-    # Summarizar los productos recomendados por cliente
-    recommendations = (
-        top_products
-        .groupby('client')
-        .agg(recommended_products=('description', lambda x: ', '.join(x)),
-             count_products=('description', 'count'))
+        .rename("cant_compras")
         .reset_index()
     )
-    return recommendations
 
-def merge_predictions_and_recommendations(predictions_df: pd.DataFrame, customer_info_df: pd.DataFrame, recommendations_df: pd.DataFrame) -> pd.DataFrame:
+    cant_compras_client = (
+        cant_compras_client
+        .sort_values(["client", "cant_compras"], ascending=[True, False])
+    )
+
+    top_products = (
+        cant_compras_client
+        .groupby("client", group_keys=False)
+        .apply(top_pct)
+        .reset_index(drop=True)
+    )
+
+    top_summary = (
+        top_products
+        .groupby('client')
+        .agg(
+            recommended_products=('description', lambda x: ', '.join(x)),
+            cantidad_productos=('description', 'count')
+        )
+        .reset_index()
+    )
+    return top_summary
+
+def merge_predictions_and_recommendations(
+        predictions_df: pd.DataFrame,
+        customer_info_df: pd.DataFrame,
+        recommendations_df: pd.DataFrame
+) -> pd.DataFrame:
     """Merges the prediction results with customer info and product recommendations."""
     predictions_with_contact = pd.merge(
         predictions_df.loc[:, ['date', 'client', "prob"]],
@@ -225,19 +231,12 @@ def main(
         customer_info_df = get_customer_info(predicted_clients)
 
         df_ventas = load_sales_and_products_data(config)
-        print(df_ventas.head())
         df_ventas = filter_excluded_products(df_ventas, config)
-        print("Filtro")
-
-        recommendation_params = config.get('recommendation_settings', {})
-        top_percentile = recommendation_params.get('top_product_percentile', 0.25)
 
         recommendations_df = generate_product_recommendations(
             df_ventas,
             predicted_clients,
-            recommendation_months,
-            top_percentile)
-        print("recommendations_df", recommendations_df)
+            recommendation_months)
 
         final_predictions_df = merge_predictions_and_recommendations(
             predicted_clients_df,

@@ -201,7 +201,7 @@ dvc repro
 5. **evaluate**: Evaluación y calibración
 6. **backtest**: Prueba en datos históricos
 
-## 📊 Generación de Predicciones
+## 📊 Generación de Predicciones: Clientes y recomendación
 
 Para generar predicciones de compra para una o varias fechas:
 
@@ -219,11 +219,15 @@ Opciones adicionales:
 
 ### Ejemplo salida
 
-| date       | client     | prob   | name                       | email                                                                                                     | phone      | telephone  |
-| ---------- | ---------- | ------ | -------------------------- | --------------------------------------------------------------------------------------------------------- | ---------- | ---------- |
-| 2025-05-01 | 64585834   | 0.8091 | GIMENEZ AVILA BLANCA ELENA | [elenablanca019@gmail.com](mailto:elenablanca019@gmail.com)                                               | 3127577573 | 3127577573 |
-| 2025-05-01 | 1037669214 | 0.7904 | PACHECO  ALEJANDRA         | [facturacionelectronicapos@eurosupermercados.com](mailto:facturacionelectronicapos@eurosupermercados.com) | 3113825900 |            |
-| 2025-05-01 | 1235245925 | 0.7904 | GISEL FERNANDEZ            | [gisellecfr@gmail.com](mailto:gisellecfr@gmail.com)                                                       | 3013475654 | 0          |
+| Fecha      | Cliente ID | Score | Cliente                                           | Email                                              | Teléfono | # Prod | Productos                                                                                                  |
+|------------|-----------|-------|---------------------------------------------------|----------------------------------------------------|----------|--------|------------------------------------------------------------------------------------------------------------------------|
+| 2025-05-10 | 800180330 | 0.7105| COMPAÑIA DE ALIMENTOS COLOMBIANOS CALCO S.A       | proveedores.fe.medellin@crepesywaffles.com         | 3102118835 | 54 | PLATANO, PULPA EUROMAX MANGO 500 g, PAPA CAPIRA, PAPA CRIOLLA, QUESITO MONTEFRIO 380 g, AREPAS EUROMAX BLANCA T… |
+| 2025-05-10 |1235245925 | 0.6977| GISEL FERNANDEZ                                   | gisellecfr@gmail.com                               | 3013475654 | 22 | PECHUGA BUCANERO CAMPESINA, ARROZ EURO 5 lb, HARINA TRIGO FROTA 500 g, COPETE QB, BRAZUELO QB, DUO PACK COCA COLA 2.5 L… |
+| 2025-05-10 |  64585834 | 0.6977| GIMENEZ AVILA BLANCA ELENA                        | elenablanca019@gmail.com                           | 3127577573 | 27 | LECHE UHT EUROMAX 900 ml, CEBOLLA ROJA, TOMATE CHONTO, PLATANO, LIMON TAHITI, ARROZ BLANCO EURO 500 g… |
+| 2025-05-10 | 901569974 | 0.6977| PATAKUS FOOD SAS                                  | facturaspatakusfoodsas@gmail.com                   | 3015186214 | 39 | TRANSPORTE DOMICILIO, COSTILLA RES QB, HUESO RES CARNUDO, CHORIZO MIXTO 500 g, JABON FLASH 300 g, ARROZ EURO 5 lb… |
+| 2025-05-10 |  70569726 | 0.6846| OTALVARO GONZALEZ LUIS FERNANDO                   | luisfernandootalvarogonzalez@hotmail.com           | 3108320614 | 27 | CIGARRILLO CHESTERFIELD 20 und, CHESTERFIELD 10 und, L&M SILVER 20 und, L&M PURPLE 10 und, L&M VARIOS 10 und, PERIODICO Q HUBO… |
+| 2025-05-10 |   8070071 | 0.6846| MOLINA JULIO CESAR                                | facturacionelectronicapos@eurosupermercados.com    | 3193171696 |  7 | AGUA EUROMAX CON GAS 600 ml, GALLETA FESTIVAL VAINILLA, AGUA EUROMAX 1000 ml, GALLETAS FESTIVAL LIMON 50 g, GASEOSA PEPSI 1.5 L, ADICIÓN AMARETO… |
+| 2025-05-10 |  32439666 | 0.6784| VELEZ MARIA ELENA                                 | facturacionelectronicapos@eurosupermercados.com    | 3172271940 | 12 | PERIODICO Q HUBO L-J, HALLS LIMÓN 25 g, PLATANO, BANANO CRIOLLO, AREPAS EUROMAX AMARILLA 350 g, SUNTEA FRESA 2 L… |
 
 
 
@@ -241,7 +245,7 @@ Y luego ejecutar:
 python3 src/backtest.py --config params.yaml
 ```
 
-
+# OTRAS IDEAS
 
 ## 🎯 Sistema de Recomendación alternos y para posteriores experimentos
 
