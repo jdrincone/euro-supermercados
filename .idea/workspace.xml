@@ -5,7 +5,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="feat: refactor">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/notebooks/recomendador_por_historia_usuario.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/recomendador_por_historia_usuario.ipynb" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -234,7 +233,7 @@
       <workItem from="1747108706992" duration="28661000" />
       <workItem from="1747247286875" duration="540000" />
       <workItem from="1747318327316" duration="18057000" />
-      <workItem from="1747429015838" duration="17253000" />
+      <workItem from="1747429015838" duration="17903000" />
     </task>
     <task id="LOCAL-00001" summary="&quot;delete proyect structure&quot;">
       <option name="closed" value="true" />
@@ -372,7 +371,15 @@
       <option name="project" value="LOCAL" />
       <updated>1747512166514</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="feat: refactor">
+      <option name="closed" value="true" />
+      <created>1747514773201</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1747514773201</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
