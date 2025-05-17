@@ -7,7 +7,7 @@ compra dada una fecha del futuro, con un sistema de recomendación basado en fil
 ## 🎯 Objetivos
 - **Predecir**, Dada un fecha, calcular la probabilidad que un cliente realice una compra.  
 - **Recomendar** los productos más adecuados a los clientes con alta probabilidad de compra.
-        La recomendación se basa en sistema de filtrado colaborativo ítem-ítem
+        La recomendación se basa en la historia de compras del cliente en el último mes.
 
 ---
 ### Criterios de Filtrado
