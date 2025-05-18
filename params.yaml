@@ -2,47 +2,35 @@ base:
   random_state: 42
 
 data:
-  base_path: data                       # Directorio base principal
-  raw_folder: raw                       # Subdirectorio para datos crudos
+  base_path: data                       # Directorio base principal                    # Subdirectorio para datos crudos
   processed_folder: processed           # Subdirectorio general para datos procesados
   predictions_output_folder: predictions # NUEVO: Subcarpeta DENTRO de 'processed_folder' para las salidas de predict.py
 
-  sales_file: ventas_completo.csv       # historico de ventas, ubicado en 'base_path/raw_folder/'
+  sales_file: initial_sales_clean.parquet   # historico de ventas, ubicado en 'base_path/raw_folder/'
   products_file: productos.csv          # archivo de productos, ubicado en 'base_path/raw_folder/'
 
   output_file: initial_sales_clean.parquet # Salida de una etapa temprana (ej. 'load_data')
                                            # Se guardaría en 'base_path/processed_folder/'
   output_columns: # Columnas para 'initial_sales_clean.parquet'
     - date_sale
-    - identification_doct
+    - id_client
     - product
-    - amount
     - invoice_value_with_discount_and_without_iva
-    - domicilio_status
+    - amount
 
   months_to_fetch: 6  # Parámetro general de cuántos datos cargar para el modelo predictivo
   last_month_with_sale: 3 # Usado para definir el conjunto de entrenamiento/backtesting en el modelo de predicción
-  backtesting_file: ventas_backtesting_new.csv # Ubicado en 'base_path/raw_folder/'
 
 load_data: # Etapa DVC 'load'
-  sales_columns:
-    - date_sale
-    - id_point_sale
-    - identification_doct
-    - product
-    - invoice_value_with_discount_and_without_iva
-    - domicilio_status
-    - amount
   sales_dtype:
-    identification_doct: str
+    id_client: str
     product: str
   output_columns: # Columnas para la salida de esta etapa DVC (ej. initial_sales_clean.parquet)
     - date_sale
     - id_client
     - product
-    - amount
     - invoice_value_with_discount_and_without_iva
-    - domicilio_status
+    - amount
   output_file: initial_sales_clean.parquet
 
 preprocess: # Etapa DVC 'preprocess' (Para el modelo de predicción de compra)
@@ -95,8 +83,8 @@ evaluate: # Etapa DVC 'evaluate' (Para el modelo de predicción de compra)
   shap_sample_size: 1000
 
 backtesting: # Etapa DVC 'backtest' (Para el modelo de predicción de compra)
-  backtest_start_date: '2025-05-14' # Fecha actual es 2025-05-13, estas fechas son para un backtesting en el pasado.
-  backtest_end_date: '2025-05-16'
+  backtest_start_date: '2025-05-16' # Fecha actual es 2025-05-13, estas fechas son para un backtesting en el pasado.
+  backtest_end_date: '2025-05-18'
 
 # --- Sección para el Recomendador Item-Item (Scripts Manuales) ---
 recommendations_item_item:

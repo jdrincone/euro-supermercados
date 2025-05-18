@@ -117,26 +117,22 @@ def get_customer_info(predicted_clients: pd.Series) -> pd.DataFrame:
 def load_sales_and_products_data(config: dict) -> pd.DataFrame:
     """Carga ventas y catálogo de productos."""
     data_params = config["data"]
-    raw_path = Path(data_params["base_path"]) / data_params["raw_folder"]
+    base_path = Path(data_params["base_path"])
+    processed_path = base_path / data_params["processed_folder"]
+    sales_file = processed_path / data_params["sales_file"]
+    products_file = processed_path / data_params["products_file"]
 
 
-    df_ventas = pd.read_csv(
-        raw_path / data_params["sales_file"],
-        usecols=["identification_doct", "product", "date_sale"],
-        low_memory=False,
-    )
-    df_ventas["client"] = df_ventas["identification_doct"].astype(str).str.strip()
-    df_ventas = df_ventas[
-        df_ventas["client"].str.isdigit() & ~df_ventas["client"].str.startswith("0")
-    ].copy()
+    df_ventas = pd.read_parquet(sales_file)
 
     df_ventas["product"] = df_ventas["product"].astype(str).str.strip()
     df_ventas["date_sale"] = pd.to_datetime(df_ventas["date_sale"]).dt.normalize()
+    df_ventas["client"] = df_ventas["id_client"].astype(str)
     df_ventas = df_ventas.dropna(subset=["date_sale"])
 
 
     productos_df = (
-        pd.read_csv(raw_path / data_params["products_file"], dtype={"codigo_unico": str})
+        pd.read_csv(products_file, dtype={"codigo_unico": str})
         .rename(columns={"codigo_unico": "product"})
         .loc[:, ["product", "description"]]
         .drop_duplicates("product")

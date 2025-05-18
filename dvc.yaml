@@ -93,9 +93,7 @@ stages:
       #- data/raw/ventas_backtesting_new.csv
     params:
       - data.base_path
-      - data.raw_folder
       - data.processed_folder
-      - data.backtesting_file
       - featurize.output_file
       - model.model_dir
       - model.calibrated_model_name

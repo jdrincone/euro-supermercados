@@ -1,79 +1,170 @@
-# src/train.py
-import pandas as pd
-import yaml
-from pathlib import Path
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+src/train.py
+============
+
+Entrena un modelo de Regresión Logística con estandarización previa
+usando el calendario de features creado en la fase *featurize*.
+
+Flujo:
+1. Lee `params.yaml`.
+2. Carga el calendario (cliente-día) desde parquet.
+3. Separa datos en *train* y *valid* según ventana temporal.
+4. Entrena un pipeline: `StandardScaler(with_mean=False)` → `LogisticRegression`.
+5. Guarda el pipeline (`joblib`) en la carpeta de modelos.
+
+Uso
+----
+$ python src/train.py --config params.yaml
+"""
+
 import argparse
+import logging
+from datetime import timedelta
+from pathlib import Path
+from typing import Any, Dict
+
+import joblib
+import pandas as pd
+
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-import joblib
-from datetime import timedelta
 
-def train_model(config_path):
-    """Entrena el modelo de Regresión Logística."""
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
+from utils import read_yaml
 
-    data_params = config['data']
-    train_params = config['train']
-    base_path = Path(data_params['base_path'])
-    processed_path = base_path / data_params['processed_folder']
-    model_path = Path(config['model']['model_dir'])
-    model_path.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 
-    input_file = processed_path / config['featurize']['output_file']
-    calendar = pd.read_parquet(input_file)
-    print(f"Calendario cargado desde: {input_file}, Filas: {len(calendar)}")
+# --------------------------------------------------------------------------- #
+#  Funciones auxiliares
+# --------------------------------------------------------------------------- #
 
-    # Definir fechas de corte para train/validation
-    max_hist = calendar[calendar['purchased'] == 1]['date'].max() # Usar la última compra real
-    if pd.isna(max_hist): # Manejar caso sin compras
-        max_hist = calendar['date'].max() - timedelta(days=train_params['split_days_validation'])
 
-    train_end_date = max_hist - timedelta(days=train_params['split_days_validation'])
-    valid_end_date = max_hist
+def load_calendar(path: Path) -> pd.DataFrame:
+    df = pd.read_parquet(path)
+    logging.info("Calendario cargado: %s filas | %s columnas", *df.shape)
+    return df
 
-    print(f"Fecha máxima histórica de compra usada para corte: {max_hist.date()}")
-    print(f"Datos de entrenamiento hasta: {train_end_date.date()}")
-    print(f"Datos de validación desde {train_end_date.date() + timedelta(days=1)} hasta {valid_end_date.date()}")
 
-    train_mask = calendar["date"] <= train_end_date
-    valid_mask = (calendar["date"] > train_end_date) & (calendar["date"] <= valid_end_date)
+def train_valid_split(
+    df: pd.DataFrame, split_days: int, target_col: str
+) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
+    """
+    Crea máscaras temporales para separar train/valid.
 
-    features = train_params['features']
-    target = train_params['target']
-
-    X_train, y_train = calendar.loc[train_mask, features], calendar.loc[train_mask, target]
-    X_valid, y_valid = calendar.loc[valid_mask, features], calendar.loc[valid_mask, target]
-
-    print(f"Tamaño Train: {X_train.shape}, Target: {y_train.mean():.3f}")
-    print(f"Tamaño Valid: {X_valid.shape}, Target: {y_valid.mean():.3f}")
-
-    # Definir y entrenar pipeline
-    print("Entrenando pipeline (Scaler + LogisticRegression)...")
-    lr_params = train_params['logistic_regression']
-    pipe = make_pipeline(
-        StandardScaler(with_mean=False), # Mantener with_mean=False como en el notebook
-        LogisticRegression(
-            solver=lr_params['solver'],
-            max_iter=lr_params['max_iter'],
-            tol=lr_params['tol'],
-            C=lr_params['C'],
-            class_weight=lr_params['class_weight'],
-            random_state=config['base']['random_state'], # Añadir random_state para reproducibilidad
-            n_jobs=-1
-        )
+    * Usa la última fecha real de compra (`purchased == 1`) como referencia.
+    * Si no existen compras, toma la fecha máxima absoluta.
+    """
+    last_hist = (
+        df.loc[df["purchased"] == 1, "date"].max()
+        if (df["purchased"] == 1).any()
+        else df["date"].max() - timedelta(days=split_days)
     )
+
+    train_end = last_hist - timedelta(days=split_days)
+    valid_end = last_hist
+
+    logging.info(
+        "Corte temporal | train ≤ %s | valid %s → %s",
+        train_end.date(),
+        (train_end + timedelta(days=1)).date(),
+        valid_end.date(),
+    )
+
+    train_mask = df["date"] <= train_end
+    valid_mask = (df["date"] > train_end) & (df["date"] <= valid_end)
+
+    X_train, y_train = df.loc[train_mask, features], df.loc[train_mask, target_col]
+    X_valid, y_valid = df.loc[valid_mask, features], df.loc[valid_mask, target_col]
+
+    logging.info(
+        "Train %s | Positives %.3f — Valid %s | Positives %.3f",
+        X_train.shape,
+        y_train.mean(),
+        X_valid.shape,
+        y_valid.mean(),
+    )
+    return X_train, y_train, X_valid, y_valid
+
+
+def build_pipeline(lr_cfg: Dict[str, Any], seed: int):
+    """Crea el pipeline Scaler → LogisticRegression con hiperparámetros del YAML."""
+    pipe = make_pipeline(
+        StandardScaler(with_mean=False),
+        LogisticRegression(
+            solver=lr_cfg["solver"],
+            max_iter=lr_cfg["max_iter"],
+            tol=lr_cfg["tol"],
+            C=lr_cfg["C"],
+            class_weight=lr_cfg["class_weight"],
+            random_state=seed,
+            n_jobs=-1,
+        ),
+    )
+    return pipe
+
+
+def save_model(pipe, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(pipe, path)
+    logging.info("Modelo guardado en %s", path.resolve())
+
+
+# --------------------------------------------------------------------------- #
+#  Entrenamiento principal
+# --------------------------------------------------------------------------- #
+def train_model(config_path: str | Path) -> None:
+    cfg = read_yaml(config_path)
+
+    # --- Rutas ------------------------------------------------------------
+    data_params = cfg["data"]
+    train_params = cfg["train"]
+    model_cfg = cfg["model"]
+
+    processed_path = Path(data_params["base_path"]) / data_params["processed_folder"]
+    calendar_in = processed_path / cfg["featurize"]["output_file"]
+    model_out = Path(model_cfg["model_dir"]) / model_cfg["model_name"]
+
+    # --- Datos ------------------------------------------------------------
+    calendar = load_calendar(calendar_in)
+
+    global features  # usado en train_valid_split
+    features = train_params["features"]
+    target = train_params["target"]
+
+    # --- Split temporal ---------------------------------------------------
+    X_train, y_train, X_valid, y_valid = train_valid_split(
+        calendar, train_params["split_days_validation"], target
+    )
+
+    # --- Pipeline & fit ---------------------------------------------------
+    pipe = build_pipeline(train_params["logistic_regression"], cfg["base"]["random_state"])
+    logging.info("Entrenando LogisticRegression…")
     pipe.fit(X_train, y_train)
-    print(f"Iteraciones Logistic Regression: {pipe.named_steps['logisticregression'].n_iter_[0]}")
+    logging.info(
+        "Entrenado en %s iteraciones",
+        pipe.named_steps["logisticregression"].n_iter_[0],
+    )
 
-    # Guardar modelo
-    model_file = model_path / config['model']['model_name']
-    joblib.dump(pipe, model_file)
-    print(f"Modelo (pipeline) guardado en: {model_file}")
+    # --- Guardar ----------------------------------------------------------
+    save_model(pipe, model_out)
 
+
+# --------------------------------------------------------------------------- #
+#  CLI
+# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='params.yaml', help='Path to config file')
+    parser = argparse.ArgumentParser(
+        description="Entrena un modelo de Regresión Logística."
+    )
+    parser.add_argument(
+        "--config",
+        default="params.yaml",
+        help="Ruta al archivo YAML de configuración (default: params.yaml)",
+    )
     args = parser.parse_args()
     train_model(args.config)

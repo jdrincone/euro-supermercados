@@ -131,13 +131,14 @@ Los conteos por ventana se calculan con un *rolling window* desplazado una fila 
 - Se debe de tener la data histórica base para no 
   realizar de cero la consulta en el API
  ```bash
-   data/raw/productos.csv
-   data/raw/ventas_completo.csv
+   data/processed/productos.csv
+   data/processed/initial_sales_clean.parquet
    ```
 ## 🔄 Pipeline de Machine Learning
 
-El pipeline completo para el modelo de probabilidad:
+El pipeline completo para el modelo de probabilidad para la primera vez:
 ```bash
+dvc init 
 dvc repro
 ```
 Para REENTRENOS:
