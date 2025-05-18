@@ -1,242 +1,313 @@
-# src/evaluate.py
-import pandas as pd
-import numpy as np
-import yaml
-from pathlib import Path
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+src/evaluate.py
+===============
+
+Evalúa y calibra el modelo entrenado, genera métricas,
+reportes y gráficos (calibración, importancias y SHAP).
+
+Uso
+----
+$ python src/evaluate.py --config params.yaml
+"""
+
 import argparse
-import joblib
 import json
+import logging
+import warnings
+from datetime import timedelta
+from pathlib import Path
+from typing import Any, Dict, Tuple
+
+import joblib
+import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import shap
 
+from sklearn.calibration import CalibratedClassifierCV, CalibrationDisplay
+from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.metrics import (
-    roc_auc_score, brier_score_loss, confusion_matrix,
-    classification_report, precision_score, recall_score, fbeta_score
+    brier_score_loss,
+    classification_report,
+    fbeta_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
 )
-from sklearn.calibration import CalibrationDisplay, CalibratedClassifierCV
-from datetime import timedelta
+from sklearn.pipeline import Pipeline
+from utils import read_yaml
 
-# Configurar matplotlib para backend no interactivo (útil para DVC)
-import matplotlib
-matplotlib.use('Agg')
 
-def evaluate_model(config_path):
-    """Evalúa, calibra y genera métricas/plots del modelo."""
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
+matplotlib.use("Agg")
 
-    data_params = config['data']
-    train_params = config['train']
-    eval_params = config['evaluate']
-    base_path = Path(data_params['base_path'])
-    processed_path = base_path / data_params['processed_folder']
-    model_path = Path(config['model']['model_dir'])
-    reports_path = Path(config['reports']['reports_dir'])
-    plots_path = reports_path / config['reports']['plots_dir']
-    plots_path.mkdir(parents=True, exist_ok=True)
-    reports_path.mkdir(parents=True, exist_ok=True) # Asegurar que reports_path existe
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 
-    # Cargar datos y modelo
-    features_file = processed_path / config['featurize']['output_file']
-    calendar = pd.read_parquet(features_file)
-    model_file = model_path / config['model']['model_name']
-    pipe = joblib.load(model_file)
-    print(f"Modelo cargado desde: {model_file}")
+# --------------------------------------------------------------------------- #
+# Utilidades
+# --------------------------------------------------------------------------- #
 
-    # Definir fechas de corte para validación (igual que en train.py)
-    max_hist = calendar[calendar['purchased'] == 1]['date'].max()
-    if pd.isna(max_hist):
-        max_hist = calendar['date'].max() - timedelta(days=train_params['split_days_validation'])
-    train_end_date = max_hist - timedelta(days=train_params['split_days_validation'])
-    valid_end_date = max_hist
 
-    valid_mask = (calendar["date"] > train_end_date) & (calendar["date"] <= valid_end_date)
-    features = train_params['features']
-    target = train_params['target']
+def load_data_and_model(cfg: Dict[str, Any]) -> Tuple[pd.DataFrame, Pipeline]:
+    processed_path = Path(cfg["data"]["base_path"]) / cfg["data"]["processed_folder"]
+    calendar = pd.read_parquet(processed_path / cfg["featurize"]["output_file"])
+    calendar["date"] = pd.to_datetime(calendar["date"]).dt.normalize()
+    calendar["client"] = calendar["client"].astype(str)
 
-    X_valid = calendar.loc[valid_mask, features]
-    y_valid = calendar.loc[valid_mask, target]
-    print(f"Datos de validación cargados. Filas: {len(X_valid)}")
-
-    # --- Evaluación del Modelo Base (Sin Calibrar) ---
-    print("Evaluando modelo base (sin calibrar)...")
-    y_pred_base = pipe.predict(X_valid)
-    y_prob_base = pipe.predict_proba(X_valid)[:, 1]
-
-    roc_auc_base = roc_auc_score(y_valid, y_prob_base)
-    brier_base = brier_score_loss(y_valid, y_prob_base)
-    print(f"  ROC-AUC (Base): {roc_auc_base:.3f}")
-    print(f"  Brier Score (Base): {brier_base:.3f}")
-    # print("  Confusion Matrix (Base):\n", confusion_matrix(y_valid, y_pred_base)) # Comentado para no llenar stdout
-
-    # ---- Guardar Reporte de Clasificación Base ----
-    report_base_str = classification_report(y_valid, y_pred_base, digits=3)
-    base_report_file = reports_path / config['reports']['base_class_report_file']
-    with open(base_report_file, 'w') as f:
-        f.write("Classification Report (Modelo Base - Sin Calibrar)\n")
-        f.write("==================================================\n")
-        f.write(report_base_str)
-    print(f"  Reporte de clasificación base guardado en: {base_report_file}")
-    # -------------------------------------------------
-
-    # --- Calibración ---
-    print(f"Calibrando modelo usando método: {eval_params['calibration_method']}")
-    calibrator = CalibratedClassifierCV(
-        pipe,
-        method=eval_params['calibration_method'],
-        cv='prefit' # Usar 'prefit' porque pipe ya está entrenado
+    model_path = (
+        Path(cfg["model"]["model_dir"]) / cfg["model"]["model_name"]
     )
-    # Capturar warnings durante fit si es necesario
-    import warnings
-    from sklearn.exceptions import InconsistentVersionWarning
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=UserWarning, message="The `cv='prefit'` option is deprecated")
-        warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
-        calibrator.fit(X_valid, y_valid) # Calibrar sobre el set de validación
+    model_pipe: Pipeline = joblib.load(model_path)
 
-    calibrated_model_file = model_path / config['model']['calibrated_model_name']
-    joblib.dump(calibrator, calibrated_model_file)
-    print(f"Modelo calibrado guardado en: {calibrated_model_file}")
+    logging.info("Calendario: %s filas | Modelo cargado de %s", len(calendar), model_path)
+    return calendar, model_pipe
 
-    # --- Evaluación del Modelo Calibrado ---
-    print("Evaluando modelo calibrado...")
-    y_prob_cal = calibrator.predict_proba(X_valid)[:, 1]
-    # Usar el umbral definido en params.yaml para el reporte
-    y_pred_cal_thresh = (y_prob_cal >= eval_params['evaluation_threshold']).astype(int)
 
-    roc_auc_cal = roc_auc_score(y_valid, y_prob_cal)
-    brier_cal = brier_score_loss(y_valid, y_prob_cal)
-    precision_cal = precision_score(y_valid, y_pred_cal_thresh)
-    recall_cal = recall_score(y_valid, y_pred_cal_thresh)
-    f05_cal = fbeta_score(y_valid, y_pred_cal_thresh, beta=0.5)
+def temporal_validation_split(
+    df: pd.DataFrame, split_days: int, target_col: str, features: list[str]
+) -> Tuple[pd.DataFrame, pd.Series]:
+    last_hist = (
+        df.loc[df["purchased"] == 1, "date"].max()
+        if (df["purchased"] == 1).any()
+        else df["date"].max() - timedelta(days=split_days)
+    )
+    train_end = last_hist - timedelta(days=split_days)
+    valid_mask = (df["date"] > train_end) & (df["date"] <= last_hist)
 
-    print(f"  ROC-AUC (Calibrado): {roc_auc_cal:.3f}")
-    print(f"  Brier Score (Calibrado): {brier_cal:.3f}")
-    print(f"  Evaluación con umbral = {eval_params['evaluation_threshold']}:")
-    print(f"    Precision: {precision_cal:.3f}")
-    print(f"    Recall: {recall_cal:.3f}")
-    print(f"    F0.5 Score: {f05_cal:.3f}")
-    # print("  Confusion Matrix (Calibrado):\n", confusion_matrix(y_valid, y_pred_cal_thresh)) # Comentado
+    logging.info(
+        "🔪 Ventana validación: %s → %s | Filas: %s",
+        (train_end + timedelta(days=1)).date(),
+        last_hist.date(),
+        valid_mask.sum(),
+    )
+    return df.loc[valid_mask, features], df.loc[valid_mask, target_col]
 
-    # ---- Guardar Reporte de Clasificación Calibrado ----
-    report_cal_str = classification_report(y_valid, y_pred_cal_thresh, digits=3)
-    calibrated_report_file = reports_path / config['reports']['calibrated_class_report_file']
-    with open(calibrated_report_file, 'w') as f:
-        f.write(f"Classification Report (Modelo Calibrado - Umbral {eval_params['evaluation_threshold']:.2f})\n")
-        f.write("=========================================================\n")
-        f.write(report_cal_str)
-    print(f"  Reporte de clasificación calibrado guardado en: {calibrated_report_file}")
-    # ----------------------------------------------------
 
-    # --- Guardar Métricas ---
-    metrics = {
-        'roc_auc_base': roc_auc_base,
-        'brier_base': brier_base,
-        'roc_auc_calibrated': roc_auc_cal,
-        'brier_calibrated': brier_cal,
-        f'precision_at_{eval_params["evaluation_threshold"]}': precision_cal,
-        f'recall_at_{eval_params["evaluation_threshold"]}': recall_cal,
-        f'f0.5_at_{eval_params["evaluation_threshold"]}': f05_cal,
+def evaluate_predictions(
+    y_true: pd.Series, y_prob: np.ndarray, threshold: float
+) -> Dict[str, float]:
+    y_pred = (y_prob >= threshold).astype(int)
+    return {
+        "roc_auc": roc_auc_score(y_true, y_prob),
+        "brier": brier_score_loss(y_true, y_prob),
+        f"precision@{threshold}": precision_score(y_true, y_pred),
+        f"recall@{threshold}": recall_score(y_true, y_pred),
+        f"f0.5@{threshold}": fbeta_score(y_true, y_pred, beta=0.5),
     }
-    metrics_file = reports_path / config['reports']['metrics_file']
-    with open(metrics_file, 'w') as f:
-        json.dump(metrics, f, indent=4)
-    print(f"Métricas guardadas en: {metrics_file}")
 
-    # --- Plot de Calibración ---
-    print("Generando plot de calibración...")
-    fig_cal, ax_cal = plt.subplots(figsize=(6, 6))
+
+def save_txt(path: Path, header: str, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as fh:
+        fh.write(header + "\n" + "=" * len(header) + "\n" + content)
+    logging.info("Guardado %s", path)
+
+
+def save_json(path: Path, obj: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump(obj, fh, indent=4)
+    logging.info("Métricas en %s", path)
+
+
+# --------- NUEVO: helper seguro para extraer el pipeline -------------------
+def _extract_pipeline_from_calibrator(cal: CalibratedClassifierCV) -> Pipeline:
+    """
+    Devuelve el Pipeline original (StandardScaler → LogisticRegression)
+    sin importar la versión de scikit-learn.
+    """
+    if hasattr(cal, "base_estimator_"):          # >= 1.4
+        return cal.base_estimator_
+    if hasattr(cal, "estimator"):                # <= 1.3 (cv='prefit')
+        return cal.estimator
+    # Fallback para cv != 'prefit'
+    return cal.calibrated_classifiers_[0].estimator
+
+
+# ------------------------- plots ------------------------------------------
+def plot_calibration(
+    base_pipe: Pipeline,
+    cal_pipe: CalibratedClassifierCV,
+    X_valid: pd.DataFrame,
+    y_valid: pd.Series,
+    bins: int,
+    out_path: Path,
+) -> None:
+    fig, ax = plt.subplots(figsize=(6, 6))
     CalibrationDisplay.from_estimator(
-        pipe, X_valid, y_valid, n_bins=eval_params['calibration_bins'],
-        strategy="uniform", name="Modelo Base", ax=ax_cal
+        base_pipe, X_valid, y_valid, n_bins=bins, name="Base", ax=ax
     )
     CalibrationDisplay.from_estimator(
-        calibrator, X_valid, y_valid, n_bins=eval_params['calibration_bins'],
-        strategy="uniform", name="Modelo Calibrado", ax=ax_cal
+        cal_pipe, X_valid, y_valid, n_bins=bins, name="Calibrado", ax=ax
     )
-    ax_cal.set_title("Curva de Calibración")
-    ax_cal.grid(alpha=0.3)
+    ax.set_title("Curva de Calibración")
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+    logging.info("Curva de calibración guardada en %s", out_path)
+
+
+def plot_feature_importance(
+    scaler, logreg, feature_names: list[str], out_path: Path
+) -> None:
+    coeff = np.abs(logreg.coef_[0])
+    top = (
+        pd.DataFrame({"feature": feature_names, "importance": coeff})
+        .sort_values("importance", ascending=False)
+        .head(15)
+    )
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.barh(top["feature"], top["importance"])
+    ax.set_xlabel("Importancia |coef|")
+    ax.set_title("Top 15 Feature Importances")
+    ax.invert_yaxis()
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+    logging.info("Feature importance guardada en %s", out_path)
+
+
+def plot_shap(
+    scaler, logreg, X_valid: pd.DataFrame, feat_names: list[str], sample: int, out_path: Path
+) -> None:
+    X_scaled = scaler.transform(X_valid)
+    if sample < len(X_scaled):
+        idx = np.random.choice(len(X_scaled), sample, replace=False)
+        X_scaled = X_scaled[idx]
+        logging.info("SHAP con muestra de %s registros", sample)
+    df_scaled = pd.DataFrame(X_scaled, columns=feat_names)
+
+    explainer = shap.LinearExplainer(logreg, df_scaled)
+    shap_vals = explainer.shap_values(df_scaled)
+
+    fig = plt.figure()
+    shap.summary_plot(shap_vals, df_scaled, plot_type="bar", show=False)
+    plt.title("SHAP Feature Importance")
     plt.tight_layout()
-    cal_plot_file = plots_path / config['reports']['calibration_plot']
-    plt.savefig(cal_plot_file)
-    plt.close(fig_cal)
-    print(f"Plot de calibración guardado en: {cal_plot_file}")
-
-    # --- Feature Importance (Coeficientes de Regresión Logística) ---
-    print("Generando plot de Feature Importance...")
-    try:
-        # Acceder al estimador dentro del calibrador y luego al pipeline
-        if hasattr(calibrator, 'base_estimator_'): # sklearn >= 1.4 approx
-            pipeline_in_calibrator = calibrator.base_estimator_
-        else: # Versiones anteriores
-            pipeline_in_calibrator = calibrator.estimator
-
-        scaler = pipeline_in_calibrator.named_steps['standardscaler']
-        logreg = pipeline_in_calibrator.named_steps['logisticregression']
-
-        # Obtener coeficientes y nombres de features
-        coefficients = logreg.coef_[0]
-        feature_names = features # Asumiendo que 'features' es la lista de nombres
-
-        # Crear dataframe para plotear
-        importance_df = pd.DataFrame({'feature': feature_names, 'importance': np.abs(coefficients)})
-        importance_df = importance_df.sort_values('importance', ascending=False).head(15) # Top 15
-
-        fig_imp, ax_imp = plt.subplots(figsize=(10, 6))
-        ax_imp.barh(importance_df['feature'], importance_df['importance'])
-        ax_imp.set_xlabel('Importancia (Valor Absoluto del Coeficiente)')
-        ax_imp.set_title('Top 15 Feature Importances (Modelo Calibrado)')
-        ax_imp.invert_yaxis()
-        plt.tight_layout()
-        imp_plot_file = plots_path / config['reports']['importance_plot']
-        plt.savefig(imp_plot_file)
-        plt.close(fig_imp)
-        print(f"Plot de Feature Importance guardado en: {imp_plot_file}")
-
-    except Exception as e:
-        print(f"Error generando Feature Importance: {e}")
+    fig.savefig(out_path)
+    plt.close(fig)
+    logging.info("SHAP summary guardado en %s", out_path)
 
 
-    # --- SHAP Values ---
-    print("Calculando y generando plot SHAP...")
-    try:
-        # Necesitamos datos escalados para el LinearExplainer
-        # Usar el mismo scaler que está dentro del pipeline calibrado
-        X_valid_scaled = scaler.transform(X_valid)
+# --------------------------------------------------------------------------- #
+# Evaluación principal
+# --------------------------------------------------------------------------- #
+def evaluate_model(config_path: str | Path) -> None:
+    cfg = read_yaml(config_path)
+    cfg_train = cfg["train"]
 
-        # Tomar una muestra para eficiencia si X_valid_scaled es muy grande
-        sample_size = min(eval_params['shap_sample_size'], len(X_valid_scaled))
-        if sample_size < len(X_valid_scaled):
-            indices = np.random.choice(X_valid_scaled.shape[0], sample_size, replace=False)
-            X_sample_scaled = X_valid_scaled[indices]
-            print(f"Usando muestra de {sample_size} para SHAP.")
-        else:
-            X_sample_scaled = X_valid_scaled
-            print(f"Usando {sample_size} datos completos para SHAP.")
+    # --- Carga ------------------------------------------------------------
+    calendar, base_pipe = load_data_and_model(cfg)
+    X_valid, y_valid = temporal_validation_split(
+        calendar,
+        cfg_train["split_days_validation"],
+        cfg_train["target"],
+        cfg_train["features"],
+    )
 
-        # Convertir a DataFrame para que SHAP use nombres de features
-        X_sample_scaled_df = pd.DataFrame(X_sample_scaled, columns=feature_names)
+    # --- Directorios de salida -------------------------------------------
+    reports_dir = Path(cfg["reports"]["reports_dir"])
+    plots_dir = reports_dir / cfg["reports"]["plots_dir"]
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    plots_dir.mkdir(parents=True, exist_ok=True)
 
-        # Explicador para el modelo de regresión logística (la parte relevante del pipeline)
-        explainer = shap.LinearExplainer(logreg, X_sample_scaled_df)
-        shap_values = explainer.shap_values(X_sample_scaled_df)
+    thr = cfg["evaluate"]["evaluation_threshold"]
 
-        # Summary Plot (tipo barra)
-        fig_shap, ax_shap = plt.subplots()
-        shap.summary_plot(shap_values, X_sample_scaled_df, plot_type="bar", show=False)
-        plt.title("Importancia de Features SHAP (Modelo Calibrado)")
-        plt.tight_layout()
-        shap_plot_file = plots_path / config['reports']['shap_summary_plot']
-        plt.savefig(shap_plot_file)
-        plt.close(fig_shap)
-        print(f"Plot SHAP Summary guardado en: {shap_plot_file}")
+    # --- Evaluación base --------------------------------------------------
+    logging.info("⚖️  Evaluando modelo base…")
+    base_metrics = evaluate_predictions(
+        y_valid, base_pipe.predict_proba(X_valid)[:, 1], thr
+    )
+    save_txt(
+        reports_dir / cfg["reports"]["base_class_report_file"],
+        "Classification Report (Base)",
+        classification_report(y_valid, base_pipe.predict(X_valid), digits=3),
+    )
 
-    except Exception as e:
-        print(f"Error calculando/generando SHAP plot: {e}")
+    # --- Calibración ------------------------------------------------------
+    logging.info("Calibrando (método=%s)…", cfg["evaluate"]["calibration_method"])
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", category=UserWarning, message="The `cv='prefit'` option"
+        )
+        warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+        calibrator = CalibratedClassifierCV(
+            base_pipe, method=cfg["evaluate"]["calibration_method"], cv="prefit"
+        ).fit(X_valid, y_valid)
+
+    joblib.dump(
+        calibrator,
+        Path(cfg["model"]["model_dir"]) / cfg["model"]["calibrated_model_name"],
+    )
+
+    # --- Evaluación calibrada --------------------------------------------
+    logging.info("⚖️  Evaluando modelo calibrado…")
+    cal_metrics = evaluate_predictions(
+        y_valid,
+        calibrator.predict_proba(X_valid)[:, 1],
+        thr,
+    )
+    save_txt(
+        reports_dir / cfg["reports"]["calibrated_class_report_file"],
+        f"Classification Report (Calibrado, thr={thr})",
+        classification_report(
+            y_valid,
+            (calibrator.predict_proba(X_valid)[:, 1] >= thr).astype(int),
+            digits=3,
+        ),
+    )
+
+    # --- Guardar métricas -------------------------------------------------
+    metrics = {f"base_{k}": v for k, v in base_metrics.items()} | {
+        f"cal_{k}": v for k, v in cal_metrics.items()
+    }
+    save_json(reports_dir / cfg["reports"]["metrics_file"], metrics)
+
+    # --- Gráficos ---------------------------------------------------------
+    plot_calibration(
+        base_pipe,
+        calibrator,
+        X_valid,
+        y_valid,
+        cfg["evaluate"]["calibration_bins"],
+        plots_dir / cfg["reports"]["calibration_plot"],
+    )
+
+    # -------- Extraer pipeline seguro y hacer plots de interpretabilidad --
+    pipeline = _extract_pipeline_from_calibrator(calibrator)
+    scaler = pipeline.named_steps["standardscaler"]
+    logreg = pipeline.named_steps["logisticregression"]
+    feat_names = cfg_train["features"]
+
+    plot_feature_importance(
+        scaler,
+        logreg,
+        feat_names,
+        plots_dir / cfg["reports"]["importance_plot"],
+    )
+    plot_shap(
+        scaler,
+        logreg,
+        X_valid,
+        feat_names,
+        cfg["evaluate"]["shap_sample_size"],
+        plots_dir / cfg["reports"]["shap_summary_plot"],
+    )
 
 
+# --------------------------------------------------------------------------- #
+#  CLI
+# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='params.yaml', help='Path to config file')
+    parser = argparse.ArgumentParser(description="Evalúa y calibra el modelo.")
+    parser.add_argument(
+        "--config", default="params.yaml", help="Ruta al YAML de configuración."
+    )
     args = parser.parse_args()
     evaluate_model(args.config)

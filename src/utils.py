@@ -2,6 +2,18 @@
 import requests
 from datetime import datetime, timedelta
 import pandas as pd
+import logging
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+from typing import Any, Dict
+
+
+import yaml
+
+load_dotenv()
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 
 def obtener_token(username, password):
@@ -70,3 +82,11 @@ def obtener_ventas(token, fecha_inicio, fecha_fin):
         fecha_actual += timedelta(days=1)
 
     return ventas_totales, dias_faltantes
+
+
+
+
+def read_yaml(path: str | Path) -> Dict[str, Any]:
+    """Carga un archivo YAML y lo devuelve como dict."""
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
