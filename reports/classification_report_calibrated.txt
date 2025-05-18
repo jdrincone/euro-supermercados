@@ -2,9 +2,9 @@ Classification Report (Modelo Calibrado - Umbral 0.50)
 =========================================================
               precision    recall  f1-score   support
 
-           0      0.731     0.929     0.818    104661
-           1      0.572     0.217     0.314     45729
+           0      0.729     0.928     0.817    103943
+           1      0.574     0.219     0.317     45877
 
-    accuracy                          0.712    150390
-   macro avg      0.651     0.573     0.566    150390
-weighted avg      0.682     0.712     0.665    150390
+    accuracy                          0.711    149820
+   macro avg      0.652     0.574     0.567    149820
+weighted avg      0.682     0.711     0.664    149820

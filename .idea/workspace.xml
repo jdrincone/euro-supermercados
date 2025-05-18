@@ -6,8 +6,15 @@
   <component name="ChangeListManager">
     <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="docs: update README">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dvc.lock" beforeDir="false" afterPath="$PROJECT_DIR$/dvc.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/notebooks/recomendador_por_historia_usuario.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/recomendador_por_historia_usuario.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/predict.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/predict.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reports/backtesting_metrics.csv" beforeDir="false" afterPath="$PROJECT_DIR$/reports/backtesting_metrics.csv" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reports/classification_report_base.txt" beforeDir="false" afterPath="$PROJECT_DIR$/reports/classification_report_base.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reports/classification_report_calibrated.txt" beforeDir="false" afterPath="$PROJECT_DIR$/reports/classification_report_calibrated.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reports/metrics.json" beforeDir="false" afterPath="$PROJECT_DIR$/reports/metrics.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reports/plots/calibration_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/calibration_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reports/plots/feature_importance.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/feature_importance.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reports/plots/shap_summary.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/shap_summary.png" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -235,7 +242,7 @@
       <workItem from="1747108706992" duration="28661000" />
       <workItem from="1747247286875" duration="540000" />
       <workItem from="1747318327316" duration="18057000" />
-      <workItem from="1747429015838" duration="26722000" />
+      <workItem from="1747429015838" duration="34313000" />
     </task>
     <task id="LOCAL-00001" summary="&quot;delete proyect structure&quot;">
       <option name="closed" value="true" />
@@ -405,7 +412,15 @@
       <option name="project" value="LOCAL" />
       <updated>1747515066610</updated>
     </task>
-    <option name="localTasksCounter" value="22" />
+    <task id="LOCAL-00022" summary="docs: update README">
+      <option name="closed" value="true" />
+      <created>1747528326876</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1747528326876</updated>
+    </task>
+    <option name="localTasksCounter" value="23" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
