@@ -4,25 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="ferat: reetreno 18 mayo">
+    <list default="true" id="8b9d513e-d59a-49b4-9276-50d159c51ff6" name="Changes" comment="ferat: refactor 18 mayo">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dvc.lock" beforeDir="false" afterPath="$PROJECT_DIR$/dvc.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dvc.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/dvc.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/params.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/params.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/backtesting_metrics.csv" beforeDir="false" afterPath="$PROJECT_DIR$/reports/backtesting_metrics.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/classification_report_base.txt" beforeDir="false" afterPath="$PROJECT_DIR$/reports/classification_report_base.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/classification_report_calibrated.txt" beforeDir="false" afterPath="$PROJECT_DIR$/reports/classification_report_calibrated.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/metrics.json" beforeDir="false" afterPath="$PROJECT_DIR$/reports/metrics.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/plots/calibration_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/calibration_curve.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/plots/feature_importance.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/feature_importance.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reports/plots/shap_summary.png" beforeDir="false" afterPath="$PROJECT_DIR$/reports/plots/shap_summary.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/backtest.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/backtest.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/evaluate.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/evaluate.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/featurize.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/featurize.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/load_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/load_data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/preprocess.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/preprocess.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/train.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -89,9 +72,9 @@
       <recent name="$PROJECT_DIR$/data" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/data/processed" />
       <recent name="$PROJECT_DIR$/notebooks" />
       <recent name="$PROJECT_DIR$/notebooks/garbages" />
-      <recent name="$PROJECT_DIR$/data/processed" />
     </key>
   </component>
   <component name="RunManager" selected="Python.gemini">
@@ -250,7 +233,7 @@
       <workItem from="1747108706992" duration="28661000" />
       <workItem from="1747247286875" duration="540000" />
       <workItem from="1747318327316" duration="18057000" />
-      <workItem from="1747429015838" duration="41933000" />
+      <workItem from="1747429015838" duration="46811000" />
     </task>
     <task id="LOCAL-00001" summary="&quot;delete proyect structure&quot;">
       <option name="closed" value="true" />
@@ -444,7 +427,23 @@
       <option name="project" value="LOCAL" />
       <updated>1747584363058</updated>
     </task>
-    <option name="localTasksCounter" value="25" />
+    <task id="LOCAL-00025" summary="ferat: refactor 18 mayo">
+      <option name="closed" value="true" />
+      <created>1747593713594</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1747593713594</updated>
+    </task>
+    <task id="LOCAL-00026" summary="ferat: refactor 18 mayo">
+      <option name="closed" value="true" />
+      <created>1747593804897</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1747593804897</updated>
+    </task>
+    <option name="localTasksCounter" value="27" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -517,7 +516,8 @@
     <MESSAGE value="feat: refactor" />
     <MESSAGE value="docs: update README" />
     <MESSAGE value="ferat: reetreno 18 mayo" />
-    <option name="LAST_COMMIT_MESSAGE" value="ferat: reetreno 18 mayo" />
+    <MESSAGE value="ferat: refactor 18 mayo" />
+    <option name="LAST_COMMIT_MESSAGE" value="ferat: refactor 18 mayo" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/euro$survival.coverage" NAME="survival Coverage Results" MODIFIED="1746102202454" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/notebooks" />

@@ -194,6 +194,25 @@ Y luego ejecutar:
 python3 src/backtest.py --config params.yaml
 ```
 
+## 📈 Resultados y Métricas
+
+Los resultados del pipeline se almacenan en:
+
+- **Modelos**:
+  - `models/model.joblib`: Modelo base
+  - `models/calibrated_model.joblib`: Modelo calibrado
+
+- **Reportes**:
+  - `reports/metrics.json`: Métricas principales
+  - `reports/classification_report_*.txt`: Reportes de clasificación
+  - `reports/backtesting_metrics.csv`: Métricas de backtesting
+
+- **Visualizaciones**:
+  - `reports/plots/calibration_curve.png`
+  - `reports/plots/feature_importance.png`
+  - `reports/plots/shap_summary.png`
+
+
 # OTRAS IDEAS RECOMENDACIÓN
 
 ### 1. Filtrado Colaborativo Item-Item (`recommendations_item_item`)
@@ -264,53 +283,5 @@ python3 src/train_recommendarion_model_by_client.py --config params.yaml
 python3 src/precompute_recommendation_model_clustering.py --config params.yaml
 ```
 
-### 2. Generación de Recomendaciones
-```bash
-python3 src/get_recommendations.py \
-  --input_file predictions/predicciones_hoy.csv \
-  --output_file recommendations/recomendaciones_para_hoy.csv
-```
-Pensado durante un par de segundos
 
-
-| date       | client     | prob   | name                  | email                                                   | phone           | telephone | recommended\_product | recommendation\_score | recommendation\_rank | description                             | brand   | category         |
-| ---------- | ---------- | ------ | --------------------- | ------------------------------------------------------- | --------------- | --------- | -------------------- | --------------------- | -------------------- | --------------------------------------- | ------- | ---------------- |
-| 2025-05-01 | 1000291241 | 0.6036 | MENDOZA YUCELIS MARIA | [yuce31072002@gmail.com](mailto:yuce31072002@gmail.com) | 3114173080.0000 | 0.0000    | 113835               | 3.6345                | 1                    | CEREAL FLIPS DULCE LECHE BOLSA  x 120GR | FLIPS   | CEREALES         |
-| 2025-05-01 | 1000291241 | 0.6036 | MENDOZA YUCELIS MARIA | [yuce31072002@gmail.com](mailto:yuce31072002@gmail.com) | 3114173080.0000 | 0.0000    | 74162                | 3.3973                | 2                    | CAFE GOURMET EUROMAX  x  500 GR         | EUROMAX | CAFE             |
-| 2025-05-01 | 1000291241 | 0.6036 | MENDOZA YUCELIS MARIA | [yuce31072002@gmail.com](mailto:yuce31072002@gmail.com) | 3114173080.0000 | 0.0000    | 82462                | 2.8573                | 3                    | BUNUELO EURO 55 gr                      | EUROMAX | PANADERIA FRESCA |
-
-##  Generación de predicción y recomendación usar sh
-```bash
-sh run_prediction_date.sh
-```
-ajustar dentro del sh los parámetros:
-
-```bash
-# --- Parámetros específicos ---
-# Define aquí la lista de fechas separadas por espacio DENTRO de las comillas
-TARGET_DATES="2025-05-01" # <--- Variable CORRECTA
-THRESHOLD="0.55" # Umbral
-
-# Nombre de archivo de salida más descriptivo
-OUTPUT_FILENAME="prediccions_with_recommendation.csv"
-FULL_OUTPUT_FILEPATH="${PREDICTIONS_FOLDER}/${OUTPUT_FILENAME}"
-```
-
-## 📈 Resultados y Métricas
-
-Los resultados del pipeline se almacenan en:
-
-- **Modelos**:
-  - `models/model.joblib`: Modelo base
-  - `models/calibrated_model.joblib`: Modelo calibrado
-
-- **Reportes**:
-  - `reports/metrics.json`: Métricas principales
-  - `reports/classification_report_*.txt`: Reportes de clasificación
-  - `reports/backtesting_metrics.csv`: Métricas de backtesting
-
-- **Visualizaciones**:
-  - `reports/plots/calibration_curve.png`
-  - `reports/plots/feature_importance.png`
-  - `reports/plots/shap_summary.png`
 
