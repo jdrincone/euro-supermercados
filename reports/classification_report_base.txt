@@ -1,10 +1,10 @@
-Classification Report (Base)
-============================
+Classification Report (Base, test set)
+======================================
               precision    recall  f1-score   support
 
-           0      0.797     0.611     0.692    101092
-           1      0.423     0.647     0.512     44588
+           0      0.809     0.545     0.651     38314
+           1      0.496     0.776     0.605     22091
 
-    accuracy                          0.622    145680
-   macro avg      0.610     0.629     0.602    145680
-weighted avg      0.682     0.622     0.637    145680
+    accuracy                          0.629     60405
+   macro avg      0.652     0.661     0.628     60405
+weighted avg      0.694     0.629     0.634     60405
