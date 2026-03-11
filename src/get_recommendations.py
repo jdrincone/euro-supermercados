@@ -1,133 +1,184 @@
-# src/get_recommendations.py
+#!/usr/bin/env python3
+"""Une recomendaciones precalculadas con predicciones de compra.
+
+Soporta tanto recomendaciones item-item como por clustering.
+Busca los archivos de recomendaciones precalculadas y los une
+con el archivo de predicciones indicado.
+
+Uso::
+
+    # Item-item
+    python src/get_recommendations.py \\
+        --input_file predictions/predictions_client.csv \\
+        --output_file predictions/predictions_with_recs.csv
+
+    # Clustering + item-item combinados
+    python src/get_recommendations.py \\
+        --input_file predictions/predictions_client.csv \\
+        --output_file predictions/predictions_with_all_recs.csv \\
+        --include_clustering
+"""
+
+import argparse
+import logging
+import sys
+from pathlib import Path
 
 import pandas as pd
-import yaml
-from pathlib import Path
-import argparse
-import sys # Para salir si hay error
 
-def load_and_get_recs(clients_input_df, config_path, output_file):
-    """
-    Carga recomendaciones pre-calculadas y las filtra/une para los clientes dados.
-    """
-    print("--- Iniciando Búsqueda de Recomendaciones Pre-calculadas ---")
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-    # --- Rutas ---
-    rec_params = config['recommendations']
-    data_params = config['data']
-    precomputed_recs_file = Path(rec_params['output_folder']) / rec_params['precomputed_recs_file']
-    products_file = Path(data_params['base_path']) / data_params['raw_folder'] / data_params['products_file']
+from config import load_config, processed_path
+from data_io import load_product_catalog
 
-    # --- Cargar Recomendaciones Pre-calculadas ---
-    try:
-        print(f"Cargando recomendaciones desde: {precomputed_recs_file}")
-        all_recs_df = pd.read_parquet(precomputed_recs_file)
-        all_recs_df['client'] = all_recs_df['client'].astype(str) # Asegurar tipo
-        print(f"Cargadas {len(all_recs_df)} filas de recs para {all_recs_df['client'].nunique()} clientes.")
-    except FileNotFoundError:
-        print(f"Error Fatal: Archivo de recomendaciones pre-calculadas no encontrado en {precomputed_recs_file}")
-        print("Por favor, ejecuta 'python src/train_recommender.py' primero.")
-        sys.exit(1) # Salir del script
-    except Exception as e:
-        print(f"Error Fatal: No se pudo cargar el archivo de recomendaciones: {e}")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+#  Helpers
+# ---------------------------------------------------------------------------
+
+
+def _load_recs_file(path: Path, label: str) -> pd.DataFrame | None:
+    """Intenta cargar un archivo de recomendaciones Parquet."""
+    if not path.exists():
+        logger.warning("%s no encontrado: %s", label, path)
+        return None
+    df = pd.read_parquet(path)
+    df["client"] = df["client"].astype(str)
+    logger.info(
+        "%s cargado: %d filas, %d clientes", label, len(df), df["client"].nunique()
+    )
+    return df
+
+
+def _merge_recommendations(
+    predictions: pd.DataFrame,
+    recs: pd.DataFrame | None,
+    rec_col_name: str,
+) -> pd.DataFrame:
+    """Une recomendaciones con predicciones por cliente."""
+    if recs is None:
+        return predictions
+
+    # Determinar columna de productos recomendados
+    rec_cols = ["client"]
+    if "recommended_products" in recs.columns:
+        rec_cols.append("recommended_products")
+    elif "recommended_product" in recs.columns:
+        rec_cols.append("recommended_product")
+        if "recommendation_score" in recs.columns:
+            rec_cols.append("recommendation_score")
+        if "recommendation_rank" in recs.columns:
+            rec_cols.append("recommendation_rank")
+
+    result = predictions.merge(recs[rec_cols], on="client", how="left")
+
+    # Renombrar para distinguir entre tipos de recomendación
+    if (
+        "recommended_products" in result.columns
+        and rec_col_name != "recommended_products"
+    ):
+        result.rename(columns={"recommended_products": rec_col_name}, inplace=True)
+
+    # Verificar cuántos clientes recibieron recomendaciones
+    rec_check_cols = [c for c in result.columns if c not in predictions.columns]
+    if rec_check_cols and len(result) > 0:
+        found = result[result[rec_check_cols[0]].notna()]["client"].nunique()
+    else:
+        found = 0
+    logger.info("Recomendaciones %s encontradas para %d clientes", rec_col_name, found)
+    return result
+
+
+# ---------------------------------------------------------------------------
+#  Pipeline principal
+# ---------------------------------------------------------------------------
+
+
+def get_recommendations(
+    input_file: str,
+    output_file: str,
+    config_path: str = "params.yaml",
+    include_clustering: bool = False,
+) -> None:
+    """Carga predicciones y les une recomendaciones precalculadas."""
+    cfg = load_config(config_path)
+    rec_cfg = cfg["recommendations_item_item"]
+    proc = processed_path(cfg)
+
+    # Cargar predicciones
+    input_path = Path(input_file)
+    if not input_path.exists():
+        logger.error("Archivo de entrada no encontrado: %s", input_path)
         sys.exit(1)
 
-    # --- Preparar DataFrame de Entrada ---
-    if 'client' not in clients_input_df.columns:
-        print("Error Fatal: El archivo de entrada debe contener la columna 'client'.")
+    predictions = pd.read_csv(input_path)
+    if "client" not in predictions.columns:
+        logger.error("El archivo de entrada debe contener columna 'client'.")
         sys.exit(1)
-    clients_input_df['client'] = clients_input_df['client'].astype(str) # Asegurar tipo
+    predictions["client"] = predictions["client"].astype(str)
 
-    # --- Buscar Recomendaciones (Merge) ---
-    print(f"Buscando recomendaciones para {len(clients_input_df)} filas de entrada (representando {clients_input_df['client'].nunique()} clientes únicos)...")
-    # Unir las recomendaciones pre-calculadas con el DataFrame de entrada
-    results_df = pd.merge(
-        clients_input_df,
-        all_recs_df,
-        on='client',
-        how='left' # Mantener todas las filas de entrada, añadir recs si existen
+    # Recomendaciones item-item
+    item_item_path = proc / rec_cfg["output_folder"] / rec_cfg["precomputed_recs_file"]
+    item_item_recs = _load_recs_file(item_item_path, "Item-item recs")
+    result = _merge_recommendations(
+        predictions, item_item_recs, "item_item_recommended_products"
     )
 
-    found_clients = results_df[results_df['recommendation_rank'].notna()]['client'].nunique()
-    print(f"Se encontraron recomendaciones para {found_clients} clientes únicos de la entrada.")
-
-    # --- Opcional: Añadir Detalles del Producto ---
-    try:
-        print(f"Cargando detalles del producto desde: {products_file}")
-        productos = pd.read_csv(products_file, dtype={"codigo_unico": str})
-        productos.rename(columns={"codigo_unico": "product"}, inplace=True)
-        productos['product'] = productos['product'].str.strip()
-        product_cols = ['product', 'description', 'brand', 'category']
-        productos = productos[product_cols].drop_duplicates(subset=['product'])
-        # Renombrar para unir con la columna de recomendaciones
-        productos.rename(columns={'product': 'recommended_product'}, inplace=True)
-
-        # Eliminar columnas de detalles si ya existen antes del merge
-        cols_to_drop = ['description', 'brand', 'category']
-        cols_exist = [col for col in cols_to_drop if col in results_df.columns]
-        if cols_exist: results_df = results_df.drop(columns=cols_exist)
-
-        # Unir detalles
-        results_df = pd.merge(
-            results_df,
-            productos,
-            on='recommended_product',
-            how='left' # Mantener todas las filas, incluso si no hay detalles del producto
+    # Recomendaciones por clustering (opcional)
+    if include_clustering:
+        cluster_cfg = cfg.get("recommendations_clustering", {})
+        cluster_path = (
+            proc
+            / cluster_cfg.get("output_folder", "recommendations")
+            / cluster_cfg.get(
+                "precomputed_cluster_recs_file", "precomputed_cluster_recs.parquet"
+            )
         )
-        print("Detalles del producto añadidos.")
-    except FileNotFoundError:
-        print(f"Advertencia: Archivo de productos no encontrado en {products_file}. No se añadirán detalles.")
-    except Exception as e:
-        print(f"Advertencia: No se pudieron añadir detalles del producto: {e}")
-
-    # --- Guardar Resultados ---
-    try:
-        # Ordenar para mejor visualización
-        results_df = results_df.sort_values(
-            # Ordenar por columnas originales + ranking
-            list(clients_input_df.columns) + ['recommendation_rank'],
-            na_position='last' # Poner filas sin recs al final
+        cluster_recs = _load_recs_file(cluster_path, "Clustering recs")
+        result = _merge_recommendations(
+            result, cluster_recs, "cluster_recommended_products"
         )
-        output_path = Path(output_file)
-        # Crear directorio si no existe
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        results_df.to_csv(output_path, index=False, float_format='%.4f')
-        print(f"\nResultados con recomendaciones guardados exitosamente en: {output_path}")
-        print("\nVista previa de la salida:")
-        print(results_df.head(15).to_string()) # Mostrar más filas para ver estructura
-    except Exception as e:
-        print(f"Error guardando el archivo de salida en {output_path}: {e}")
 
-    print("\n--- Búsqueda de Recomendaciones Finalizada ---")
+    # Agregar detalles de producto (si hay columna recommended_product)
+    if "recommended_product" in result.columns:
+        try:
+            catalog = load_product_catalog(proc / cfg["data"]["products_file"])
+            catalog.rename(columns={"product": "recommended_product"}, inplace=True)
+            result = result.merge(catalog, on="recommended_product", how="left")
+        except FileNotFoundError:
+            logger.warning("Catálogo no encontrado. Sin detalles de producto.")
+
+    # Guardar
+    out_path = Path(output_file)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    sort_cols = [c for c in predictions.columns if c in result.columns]
+    if "recommendation_rank" in result.columns:
+        sort_cols.append("recommendation_rank")
+    result.sort_values(sort_cols, na_position="last", inplace=True)
+
+    result.to_csv(out_path, index=False, float_format="%.4f")
+    logger.info("Resultados guardados: %s", out_path)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Busca recomendaciones pre-calculadas para una lista de clientes.")
-    parser.add_argument(
-        '--input_file',
-        required=True,
-        help='Ruta al archivo CSV de entrada con la columna "client" (ej: salida de predict.py).'
+    parser = argparse.ArgumentParser(
+        description="Une recomendaciones precalculadas con predicciones."
     )
     parser.add_argument(
-        '--output_file',
-        required=True,
-        help='Ruta al archivo CSV de salida donde se guardarán los resultados con recomendaciones.'
+        "--input_file", required=True, help="CSV de entrada con columna 'client'."
     )
+    parser.add_argument("--output_file", required=True, help="CSV de salida.")
+    parser.add_argument("--config", default="params.yaml", help="Ruta a params.yaml.")
     parser.add_argument(
-        '--config',
-        default='params.yaml',
-        help='Ruta al archivo de configuración params.yaml.'
+        "--include_clustering", action="store_true", help="Incluir recs por clustering."
     )
     args = parser.parse_args()
-
-    try:
-        input_clients_df = pd.read_csv(args.input_file)
-        load_and_get_recs(input_clients_df, args.config, args.output_file)
-    except FileNotFoundError:
-        print(f"Error Fatal: Archivo de entrada no encontrado en {args.input_file}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error Fatal procesando el archivo de entrada: {e}")
-        sys.exit(1)
+    get_recommendations(
+        args.input_file, args.output_file, args.config, args.include_clustering
+    )
