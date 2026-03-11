@@ -1,287 +1,116 @@
-# Motor de recomendación: Predicción de compras y recomendación de productos
+# Euro ML
 
-Este proyecto implementa un sistema de recomendación y predicción de compras utilizando técnicas de Machine Learning.
-El sistema combina un modelo predictivo para identificar clientes con alta probabilidad de
-compra dada una fecha del futuro, con un sistema de recomendación basado en la historia de compras
-del cliente en el último mes.
-## 🎯 Objetivos
-- **Predecir**, Dada un fecha, calcular la probabilidad que un cliente realice una compra.  
-- **Recomendar** los productos más adecuados a los clientes con alta probabilidad de compra.
-        La recomendación se basa en la historia de compras del cliente en el último mes.
+Predicción de probabilidad de compra diaria y recomendación de productos para Euro Supermercados.
 
----
-### Criterios de Filtrado
-1. **Historial de Clientes**
-   - Para clientes con compras en los últimos 3 meses (`last_month_with_sale`), se toma su historial de compras de los últimos
-     6 meses (`months_to_fetch`)
+## Requisitos
 
+- [uv](https://docs.astral.sh/uv/) (instala Python 3.13 automáticamente)
 
-2. **Patrones de Compra**
-   - Mínimo de compra configurable (`min_purchase_count`)
-   - Mediana de días entre compras menor a (`max_median_days_between`)
-   - Desviación estándar de días entre compras menor a (`max_std_days_between`)
-
-3. **Actividad General**
-   - Máximo de días entre compra y compra (`min_purchase_days_filter`)
-   - Mínimo de productos únicos comprados (`min_products_filter`)
-
-## 🤖 Modelo Predictivo
-
-### Feature Engineer
-
-A partir del calendario completo **cliente‑fecha** se crean dos grupos de variables explicativas:
-
-| Grupo | Variable | Descripción |
-|-------|----------|-------------|
-| **Temporales** | `dow` | Día de la semana |
-| | `dom` | Día del mes |
-| | `month` | Mes |
-| | `is_weekend` | Indicador de fin de semana |
-| | `is_quincena` | Indicador de quincena (28, 29, 30, 31, 1, 2, 13, 14, 15, 16 de cada mes) |
-| | `days_since_last` | Días transcurridos desde la última compra |
-| **Ventanas móviles (*lagged counts*)** | `cnt_1d` | Compras del cliente en el **día previo** |
-| | `cnt_3d` | Compras acumuladas en los **3 días previos** |
-| | `cnt_7d` | Compras acumuladas en la **última semana** |
-| | `cnt_15d` | Compras acumuladas en los **últimos 15 días** |
-| | `cnt_30d` | Compras acumuladas en el **último mes** |
-
-Los conteos por ventana se calculan con un *rolling window* desplazado una fila para evitar fuga de información hacia el futuro:
-
-### Características
-- **Tipo**: Regresión Logística con calibración
-- **Preprocesamiento**: Escalado estándar (sin centrado)
-- **Características Principales**:
-  - Historial de compras
-  - Patrones temporales
-  - Comportamiento de compra
-
-### Pipeline de Entrenamiento
-1. **Preprocesamiento**
-   - Limpieza de datos
-   - Filtrado de clientes según criterios
-   - Patrones de compra
-   - Agregación diaria de ventas
-  
-
-2. **Generación de Features**
-   - Características de calendario
-
-3. **Entrenamiento**
-   - División train/validation basada en fechas
-   - Entrenamiento con Regresión Logística
-   - Calibración del modelo
-
-4. **Evaluación**
-   - Métricas de clasificación
-   - Curva de calibración
-   - Importancia de features
-   - Análisis SHAP
-
-## 🎯 Sistema de Recomendación
-
-### 0. Recomendación base histórico del cliente (`recommendations based on recent purchase history`)
-- De los clientes predichos,  se toman las compras del último mes (parámetro)
-  y nos quedamos con el 75 % (aprox.) de los productos distintos que más compra cada cliente.
-
-
-### Backtesting (Modelo Predictivo)
-- Evaluación diaria en período histórico
-- Métricas por fecha
-- Umbral de evaluación configurable
-
-## 🛠️ Configuración del Entorno
-
-### Prerrequisitos
-- Python 3.11+
-- Git
-- DVC (Opcional, si se usa para versionado de datos/modelos)
-
-
-### Instalación
-1. **Clonar el repositorio**
-   ```bash
-   git clone https://github.com/jdrincone/euro.git
-   cd euro
-   ```
-
-2. **Crear y activar entorno virtual**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate    # Linux/macOS
-   # venv\Scripts\activate    # Windows
-   ```
-
-3. **Instalar dependencias**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configurar DVC (En caso de almacenar artefactos en la nube)**
-   ```bash
-   pip install dvc
-   dvc remote add -d myremote s3://your-bucket/dvc-store
-   dvc pull
-   ```
-5. **Construir .env**
-   ```bash
-   API_USERNAME=""
-   API_PASSWORD=""
-   ```
-6.  **Data histórica base**
-- Se debe de tener la data histórica base para no 
-  realizar de cero la consulta en el API
- ```bash
-   data/processed/productos.csv
-   data/processed/initial_sales_clean.parquet
-   ```
-## 🔄 Pipeline de Machine Learning
-
-El pipeline completo para el modelo de probabilidad para la primera vez:
-```bash
-dvc init 
-dvc repro
-```
-Para REENTRENOS:
-```bash
-dvc repro --force
-```
-Con el flag, se ejecuta por completo todo el código.
-
-### Etapas del Pipeline
-1. **load**: Carga y limpieza inicial de datos
-2. **preprocess**: Filtrado y agregación de ventas
-3. **featurize**: Generación de características
-4. **train**: Entrenamiento del modelo
-5. **evaluate**: Evaluación y calibración
-6. **backtest**: Prueba en datos históricos
-
-## 📊 Generación de Predicciones: Clientes y recomendación
-
-Para generar predicciones de compra para una o varias fechas:
+## Setup
 
 ```bash
-python3 src/predict.py --dates 2025-05-08 2025-05-09 2025-05-10 2025-05-11
+uv sync
+cp .env.example .env  # Configurar API_USERNAME y API_PASSWORD
 ```
-Una fecha particular
+
+Datos semilla requeridos en `data/processed/`:
+- `initial_sales_clean.parquet` — Histórico de ventas
+- `productos.csv` — Catálogo de productos
+
+## Pipeline DVC
+
 ```bash
-python3 src/predict.py --dates 2025-05-10 --output pred_10_mayo.csv
+uv run dvc repro          # Primera vez
+uv run dvc repro --force  # Re-entrenamiento
 ```
-Opciones adicionales:
-- `--threshold`: Umbral de probabilidad (default: 0.5)
-- `--output`: Nombre del archivo de salida
-- `--config`: Ruta alternativa a params.yaml
 
-### Ejemplo salida
+Etapas: `load` → `preprocess` → `featurize` → `train` → `evaluate` → `backtest`
 
-| Fecha      | Cliente ID | Score | Cliente                                           | Email                                              | Teléfono | # Prod | Productos                                                                                                  |
-|------------|-----------|-------|---------------------------------------------------|----------------------------------------------------|----------|--------|------------------------------------------------------------------------------------------------------------------------|
-| 2025-05-10 | 800180330 | 0.7105| COMPAÑIA DE ALIMENTOS COLOMBIANOS CALCO S.A       | proveedores.fe.medellin@crepesywaffles.com         | 3102118835 | 54 | PLATANO, PULPA EUROMAX MANGO 500 g, PAPA CAPIRA, PAPA CRIOLLA, QUESITO MONTEFRIO 380 g, AREPAS EUROMAX BLANCA T… |
-| 2025-05-10 |1235245925 | 0.6977| GISEL FERNANDEZ                                   | gisellecfr@gmail.com                               | 3013475654 | 22 | PECHUGA BUCANERO CAMPESINA, ARROZ EURO 5 lb, HARINA TRIGO FROTA 500 g, COPETE QB, BRAZUELO QB, DUO PACK COCA COLA 2.5 L… |
-| 2025-05-10 |  64585834 | 0.6977| GIMENEZ AVILA BLANCA ELENA                        | elenablanca019@gmail.com                           | 3127577573 | 27 | LECHE UHT EUROMAX 900 ml, CEBOLLA ROJA, TOMATE CHONTO, PLATANO, LIMON TAHITI, ARROZ BLANCO EURO 500 g… |
+Ejecución individual (si ya tienes los datos semilla, saltar `load`):
 
-
-### BackTesting
-En params.yaml ajustar las fechas de prueba (Fecha después)
 ```bash
-backtesting: # Etapa DVC 'backtest'
-  backtest_start_date: '2025-05-02'
-  backtest_end_date: '2025-05-08'
-  
-
-```
-Y luego ejecutar: 
-```
-python3 src/backtest.py --config params.yaml
+uv run python src/preprocess.py --config params.yaml
+uv run python src/featurize.py --config params.yaml
+uv run python src/train.py --config params.yaml
+uv run python src/evaluate.py --config params.yaml
 ```
 
-## 📈 Resultados y Métricas
+## Recomendadores
 
-Los resultados del pipeline se almacenan en:
+Entrenamiento manual (fuera del pipeline DVC):
 
-- **Modelos**:
-  - `models/model.joblib`: Modelo base
-  - `models/calibrated_model.joblib`: Modelo calibrado
-
-- **Reportes**:
-  - `reports/metrics.json`: Métricas principales
-  - `reports/classification_report_*.txt`: Reportes de clasificación
-  - `reports/backtesting_metrics.csv`: Métricas de backtesting
-
-- **Visualizaciones**:
-  - `reports/plots/calibration_curve.png`
-  - `reports/plots/feature_importance.png`
-  - `reports/plots/shap_summary.png`
-
-
-# OTRAS IDEAS RECOMENDACIÓN
-
-### 1. Filtrado Colaborativo Item-Item (`recommendations_item_item`)
-
-- **Alcance**: Últimos 3 meses de compras (configurable vía `data.last_month_with_sale` y `data.months_to_fetch` en `params.yaml`).
-- **Filtrado de Productos**:
-  - Exclusión de productos específicos (ej: bolsas, transporte, configurado en `params.yaml`).
-  - a. Selección basada en frecuencia de compra global: se toma el 10% de los productos top comprados en los últimos 3 meses.
-  - b. Selección basada en el top 5 de productos por cliente.
-
-#### Proceso de Recomendación Item-Item
-1. **Entrenamiento (Offline)**
-   - Se ejecuta `src/train_recommender.py` o `src/train_recommender_by_client.py`.
-   - Cálculo de matriz de similitud item-item.
-   - Pre-cálculo de recomendaciones para todos los clientes.
-   - Almacenamiento de mapeos y matrices (configurado en `params.yaml` bajo `recommendations_item_item`).
-
-2. **Generación (Online/Batch)**
-   - Se ejecuta `src/get_recommendations.py`.
-   - Búsqueda rápida de recomendaciones pre-calculadas.
-   - Filtrado por clientes con alta probabilidad de compra (provenientes del modelo predictivo).
-   - Unión con información de productos.
-
-### 2. Recomendación Basada en Clustering de Clientes (`recommendations_clustering`)
-
-Este sistema segmenta a los clientes según sus patrones de compra y recomienda los productos más populares dentro de cada segmento.
-
-- **Criterios de Filtrado para Clustering**:
-    - Actividad reciente: Clientes con compras en los últimos N meses (`recommendations_clustering.months_recent_activity`).
-    - Patrones de compra:
-        - Mínimo de días de compra distintos (`recommendations_clustering.min_purchase_days_pattern`).
-        - Mediana máxima de días entre compras (`recommendations_clustering.max_median_days_pattern`).
-        - Desviación estándar máxima de días entre compras (`recommendations_clustering.max_std_days_pattern`).
-- **Características de Clustering**:
-    - Basado en métricas como mediana y desviación estándar de días entre compras, monto promedio de pago y cantidad de productos únicos comprados (configurable en `recommendations_clustering.features_for_clustering`).
-- **Algoritmo**: K-Means.
-- **Número de Clusters**: Configurable (`recommendations_clustering.n_clusters`), idealmente basado en análisis como el método del codo o silueta.
-- **Filtrado de Productos para Recomendación**:
-  - Exclusión de productos específicos (ej: bolsas, menú empleados, configurable en `recommendations_clustering.excluded_product_descriptions`).
-
-#### Proceso de Recomendación por Clustering
-1. **Preprocesamiento y Segmentación (Offline/Batch)**
-   - Se ejecuta `src/train_recommender_by_clustering.py` (o el nombre que le hayas dado al script modularizado, ej. `recommender_pipeline.py`).
-   - Carga de datos de ventas y productos.
-   - Filtrado de clientes por actividad y patrones de compra.
-   - Aplicación de K-Means para segmentar a los clientes.
-   - Identificación de los productos más populares (descripciones) para cada clúster.
-   - Guardado de las recomendaciones precalculadas por cliente en un archivo Parquet (`recommendations_clustering.precomputed_cluster_recs_file`).
-
-2. **Generación (Online/Batch para combinar con predicción de compra)**
-   - Se pueden tomar las predicciones de compra del modelo predictivo.
-   - Para los clientes con alta probabilidad de compra, se buscan sus recomendaciones precalculadas del archivo Parquet generado en el paso anterior.
-   - Unión con información de productos si es necesario mostrar detalles adicionales.
-
-
-### 1. Entrenamiento del Recomendador por items-items
-#### En caso de predecir basado en el 10% de productos top
 ```bash
-python3 src/train_recommender.py --config params.yaml
+uv run python src/train_recommender.py --config params.yaml             # Item-Item (top 10% global)
+uv run python src/train_recommender_by_client.py --config params.yaml   # Item-Item (top 5/cliente)
+uv run python src/train_recommender_by_clustering.py --config params.yaml  # K-Means por segmentos
 ```
 
-#### En caso de predecir basado en el top 5 de productos por cliente
+## Predicción
+
 ```bash
-python3 src/train_recommendarion_model_by_client.py --config params.yaml
+uv run python src/predict.py --dates 2025-11-07 2025-11-08
+uv run python src/predict.py --dates 2025-11-07 --threshold 0.6 --output pred.csv
 ```
-#### En caso de predecir por clustering
+
+Unir predicciones con recomendaciones:
+
 ```bash
-python3 src/precompute_recommendation_model_clustering.py --config params.yaml
+uv run python src/get_recommendations.py \
+    --input_file predictions/predictions_client.csv \
+    --output_file predictions/preds_with_recs.csv \
+    --include_clustering
 ```
 
+## Backtesting
 
+Ajustar `backtesting.backtest_start_date` / `backtest_end_date` en `params.yaml`:
 
+```bash
+uv run python src/backtest.py --config params.yaml
+```
+
+## Estructura
+
+```
+src/
+├── config.py            # Carga YAML + resolución de rutas
+├── api_client.py        # Cliente HTTP para API Euro
+├── data_io.py           # I/O: Parquet, modelos, reportes
+├── patterns.py          # Patrones de compra (preprocess + clustering)
+├── collaborative.py     # Filtrado colaborativo item-item
+├── load_data.py         # Descarga ventas desde API
+├── preprocess.py        # Filtrado de clientes por patrones
+├── featurize.py         # Features temporales + rolling windows
+├── train.py             # Entrena LogisticRegression
+├── evaluate.py          # Calibración sigmoid + métricas + SHAP
+├── backtest.py          # Backtesting con ventas reales
+├── predict.py           # Inferencia + recomendaciones por historial
+├── train_recommender.py             # Item-Item CF (top 10%)
+├── train_recommender_by_client.py   # Item-Item CF (top 5/cliente)
+├── train_recommender_by_clustering.py  # K-Means clustering
+└── get_recommendations.py           # Une predicciones + recomendaciones
+```
+
+## Configuración
+
+Todo en `params.yaml`:
+
+| Sección | Descripción |
+|---------|-------------|
+| `data` | Rutas y ventana temporal |
+| `preprocess` | Filtros de patrones de compra |
+| `featurize` | Features temporales y rolling windows |
+| `train` | Hiperparámetros LogisticRegression |
+| `evaluate` | Calibración y métricas |
+| `recommendations_item_item` | Recomendador colaborativo |
+| `recommendations_clustering` | Recomendador por segmentos |
+
+## Artefactos
+
+| Archivo | Descripción |
+|---------|-------------|
+| `models/model.joblib` | Modelo base |
+| `models/calibrated_model.joblib` | Modelo calibrado (sigmoid) |
+| `reports/metrics.json` | ROC-AUC, Brier, Precision, Recall |
+| `reports/plots/` | Calibración, importancia, SHAP |
+| `data/processed/recommendations/` | Recomendaciones precalculadas |
