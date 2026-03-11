@@ -1,1 +1,36 @@
+# === Datos y artefactos ===
 data/
+models/*.joblib
+predictions/
+recommendations/
+recommendation_model_item_item/
+
+# === Python / uv ===
+*.pyc
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+uv.lock
+
+# === IDE / Editores ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*.code-workspace
+
+# === Claude / AI ===
+.claude/
+CLAUDE.md
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Secretos ===
+.env
+*.env.local
+
+# === Jupyter ===
+.ipynb_checkpoints/
