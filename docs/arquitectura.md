@@ -33,7 +33,8 @@ euro/
 │   ├── train_recommender.py      # Recomendador item-item (top 10% global)
 │   ├── train_recommender_by_client.py   # Recomendador item-item (top 5/cliente)
 │   ├── train_recommender_by_clustering.py  # Segmentacion + recs por cluster
-│   └── get_recommendations.py    # Une recomendaciones con predicciones
+│   ├── get_recommendations.py    # Une recomendaciones con predicciones
+│   └── utils.py                  # (Deprecado) Re-exporta nombres antiguos
 │
 ├── notebooks/                    # Notebooks interactivos (Jupyter)
 │   ├── 01_pipeline_predictivo.ipynb
@@ -133,6 +134,8 @@ Seis modulos compartidos evitan duplicacion de logica:
 | `client_filters.py` | Validacion de cedulas colombianas | load_data, preprocess, clustering |
 | `patterns.py` | Patrones de compra, features segmentacion | preprocess, clustering |
 | `collaborative.py` | Matriz sparse, similitud coseno | train_recommender, train_recommender_by_client |
+
+> **Nota:** `utils.py` es un modulo de compatibilidad deprecado que re-exporta funciones con nombres antiguos (`read_yaml`, `obtener_token`, etc.). Importar directamente desde `config`, `api_client` o `data_io`.
 
 ---
 

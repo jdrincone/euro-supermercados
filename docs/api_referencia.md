@@ -272,3 +272,16 @@ Une recomendaciones precalculadas con predicciones.
 3. Opcionalmente carga recomendaciones por clustering.
 4. Hace left-join por `client`.
 5. Guarda CSV combinado.
+
+---
+
+## utils.py
+
+> **Deprecado.** Modulo de compatibilidad que re-exporta funciones con nombres antiguos. Importar directamente desde `config`, `api_client` o `data_io`.
+
+| Alias antiguo | Funcion real |
+|---------------|-------------|
+| `read_yaml` | `config.load_config` |
+| `obtener_token` | `api_client.get_auth_token` |
+| `obtener_ventas` | `api_client.fetch_sales` |
+| `obtener_terceros` | `api_client.fetch_third_parties` |
