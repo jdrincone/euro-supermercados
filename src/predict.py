@@ -1,225 +1,205 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Predicción de clientes con alta probabilidad de compra
-y generación de recomendaciones de producto.
-"""
+#!/usr/bin/env python3
+"""Predicción de clientes con alta probabilidad de compra + recomendaciones.
 
+Orquesta el flujo completo:
+    1. Carga modelo calibrado y calendario de features.
+    2. Predice clientes con probabilidad >= umbral para las fechas indicadas.
+    3. Obtiene info de contacto del cliente vía API.
+    4. Genera recomendaciones basadas en compras recientes.
+    5. Guarda predicciones + recomendaciones en CSV.
+
+Uso::
+
+    python src/predict.py --dates 2025-05-08 2025-05-09 --threshold 0.5
+"""
 
 import argparse
+import logging
 import math
-import os
-from datetime import datetime, timedelta
+import sys
+from datetime import timedelta
 from pathlib import Path
 
-import joblib
 import pandas as pd
-import yaml
-from dotenv import load_dotenv
 
-from utils import obtener_token, obtener_terceros
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from api_client import fetch_third_parties, get_auth_token
+from config import load_config, processed_path
+from data_io import load_calendar_features, load_calibrated_model, load_product_catalog
 
-load_dotenv()
-
-
-
-def load_config(config_path: str) -> dict:
-    """Carga el archivo YAML de configuración."""
-    with open(config_path) as f:
-        return yaml.safe_load(f)
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
-def load_model_and_features(config: dict):
-    """Carga el modelo calibrado y el calendario de features."""
-    data_params = config["data"]
-    model_params = config["model"]
+# ---------------------------------------------------------------------------
+#  Predicción
+# ---------------------------------------------------------------------------
 
-    processed_path = Path(data_params["base_path"]) / data_params["processed_folder"]
-    model_path = Path(model_params["model_dir"])
 
-    features_file = processed_path / config["featurize"]["output_file"]
-    calibrated_model_file = model_path / model_params["calibrated_model_name"]
-
+def _parse_dates(dates_str: list[str]) -> list[pd.Timestamp]:
+    """Convierte strings de fecha a Timestamps normalizados."""
     try:
-        print(f"Cargando modelo calibrado: {calibrated_model_file}")
-        calibrator = joblib.load(calibrated_model_file)
-
-        print(f"Cargando calendario de features: {features_file}")
-        calendar = pd.read_parquet(features_file)
-        calendar["date"] = pd.to_datetime(calendar["date"])
-        calendar["client"] = calendar["client"].astype(str)
-
-        return calibrator, calendar
-
-    except FileNotFoundError as e:
-        msg = (
-            f"Archivo no encontrado: {e}. "
-            "Asegúrate de haber ejecutado `dvc repro`."
-        )
-        raise FileNotFoundError(msg) from e
+        dates = [pd.to_datetime(d).normalize() for d in dates_str]
+    except ValueError as exc:
+        raise ValueError(f"Formato de fecha inválido (usar YYYY-MM-DD): {exc}") from exc
+    logger.info(
+        "Fechas de predicción: %s", ", ".join(d.strftime("%Y-%m-%d") for d in dates)
+    )
+    return dates
 
 
-def process_prediction_dates(prediction_dates_str: list[str]) -> list[pd.Timestamp]:
-    """Convierte strings de fecha a objetos datetime normalizados."""
-    try:
-        prediction_dates = [pd.to_datetime(d).normalize() for d in prediction_dates_str]
-        print(
-            "Fechas de predicción:",
-            ", ".join(d.strftime("%Y-%m-%d") for d in prediction_dates),
-        )
-        return prediction_dates
-    except ValueError as e:
-        raise ValueError(
-            f"Formato de fecha inválido (usa YYYY-MM-DD). Detalle: {e}"
-        ) from e
-
-
-def make_predictions(
-    config: dict,
+def _make_predictions(
+    model,
     calendar: pd.DataFrame,
-    prediction_dates: list[pd.Timestamp],
+    features: list[str],
+    dates: list[pd.Timestamp],
     threshold: float,
 ) -> pd.DataFrame:
-    """Genera probabilidades para las fechas indicadas y filtra por umbral."""
-    train_params = config["train"]
-    predict_df = calendar[calendar["date"].isin(prediction_dates)].copy()
+    """Genera probabilidades y filtra por umbral."""
+    df = calendar[calendar["date"].isin(dates)].copy()
 
-    if predict_df.empty:
-        print("No hay datos para las fechas especificadas.")
-        print(
-            f"Rango disponible: {calendar['date'].min().date()} "
-            f"a {calendar['date'].max().date()}"
+    if df.empty:
+        logger.warning(
+            "Sin datos para fechas indicadas. Rango disponible: %s a %s",
+            calendar["date"].min().date(),
+            calendar["date"].max().date(),
         )
         return pd.DataFrame()
 
-    print(f"Realizando predicciones sobre {len(predict_df)} registros…")
-    features = train_params["features"]
-
-    calibrator, _ = load_model_and_features(config)  # Asegura modelo en memoria
-    predict_df["prob"] = calibrator.predict_proba(predict_df[features])[:, 1]
-
-    return predict_df[predict_df["prob"] >= threshold].copy()
+    df["prob"] = model.predict_proba(df[features])[:, 1]
+    result = df[df["prob"] >= threshold].copy()
+    logger.info("Predicciones: %d registros >= umbral %.2f", len(result), threshold)
+    return result
 
 
-def get_customer_info(predicted_clients: pd.Series) -> pd.DataFrame:
-    """Obtiene info de contacto de clientes vía API propietaria."""
-    username = os.environ["API_USERNAME"]
-    password = os.environ["API_PASSWORD"]
-
-    token = obtener_token(username, password)
-    terceros = obtener_terceros(token, predicted_clients, batch_size=10)
-
-    df_terceros = pd.DataFrame(terceros).rename(columns={"document": "client"})
-    return df_terceros
+# ---------------------------------------------------------------------------
+#  Info de contacto
+# ---------------------------------------------------------------------------
 
 
-def load_sales_and_products_data(config: dict) -> pd.DataFrame:
-    """Carga ventas y catálogo de productos."""
-    data_params = config["data"]
-    base_path = Path(data_params["base_path"])
-    processed_path = base_path / data_params["processed_folder"]
-    sales_file = processed_path / data_params["sales_file"]
-    products_file = processed_path / data_params["products_file"]
+def _get_customer_info(clients: pd.Series) -> pd.DataFrame:
+    """Obtiene datos de contacto de clientes vía API."""
+    token = get_auth_token()
+    records = fetch_third_parties(token, clients.tolist(), batch_size=10)
+    return pd.DataFrame(records).rename(columns={"document": "client"})
 
 
-    df_ventas = pd.read_parquet(sales_file)
-
-    df_ventas["product"] = df_ventas["product"].astype(str).str.strip()
-    df_ventas["date_sale"] = pd.to_datetime(df_ventas["date_sale"]).dt.normalize()
-    df_ventas["client"] = df_ventas["id_client"].astype(str)
-    df_ventas = df_ventas.dropna(subset=["date_sale"])
+# ---------------------------------------------------------------------------
+#  Recomendaciones por historial reciente
+# ---------------------------------------------------------------------------
 
 
-    productos_df = (
-        pd.read_csv(products_file, dtype={"codigo_unico": str})
-        .rename(columns={"codigo_unico": "product"})
-        .loc[:, ["product", "description"]]
-        .drop_duplicates("product")
+def _load_sales_with_descriptions(cfg: dict) -> pd.DataFrame:
+    """Carga ventas + catálogo de productos, excluyendo productos configurados."""
+    proc = processed_path(cfg)
+    data_cfg = cfg["data"]
+
+    df = pd.read_parquet(proc / data_cfg["sales_file"])
+    df = df.assign(
+        product=df["product"].astype(str).str.strip(),
+        date_sale=pd.to_datetime(df["date_sale"]).dt.normalize(),
+        client=df["id_client"].astype(str),
     )
-    productos_df["product"] = productos_df["product"].str.strip()
+    df = df.dropna(subset=["date_sale"])
 
-    return df_ventas.merge(productos_df, on="product")
+    catalog = load_product_catalog(proc / data_cfg["products_file"])
+    df = df.merge(catalog, on="product")
 
-
-def filter_excluded_products(df_ventas: pd.DataFrame, config: dict) -> pd.DataFrame:
-    """Excluye productos indicados en la configuración."""
-    excluded = config["recommendations_clustering"].get(
+    # Excluir productos configurados
+    excluded = cfg.get("recommendations_clustering", {}).get(
         "excluded_product_descriptions", []
     )
-    return df_ventas[~df_ventas["description"].isin(excluded)].copy()
+    if excluded:
+        df = df[~df["description"].isin(excluded)].copy()
+
+    return df
 
 
-def top_pct(group: pd.DataFrame, top_percentile: float = 0.75) -> pd.DataFrame:
-    """Toma el 75 % superior de productos por frecuencia relativa."""
-    k = math.ceil(len(group) * top_percentile)
-    return group.head(k)
-
-
-def generate_product_recommendations(
-    df_ventas: pd.DataFrame,
+def _generate_recommendations(
+    df_sales: pd.DataFrame,
     predicted_clients: pd.Series,
-    recommendation_months: int = 1,
+    top_percentile: float,
+    months: int = 1,
 ) -> pd.DataFrame:
-    """Genera recomendaciones de producto basadas en compras recientes."""
-    last_months_ago = datetime.now().date() - timedelta(days=recommendation_months * 30)
+    """Recomienda productos basados en compras recientes del cliente.
 
-    recent_purchases = df_ventas[df_ventas["date_sale"].dt.date >= last_months_ago]
-    recent_purchases_pred = recent_purchases[recent_purchases["client"].isin(predicted_clients)]
+    Usa la fecha máxima del dataset como referencia (no datetime.now()).
 
-    client_daily = (
-        recent_purchases_pred.groupby(["client", "date_sale", "description"])
+    Args:
+        df_sales: Ventas con descripción de producto.
+        predicted_clients: IDs de clientes predichos.
+        top_percentile: Fracción de productos a mantener (ej: 0.75 = top 75%).
+        months: Meses hacia atrás a considerar.
+    """
+    max_date = df_sales["date_sale"].max()
+    cutoff = max_date - timedelta(days=months * 30)
+
+    recent = df_sales[
+        (df_sales["date_sale"] >= cutoff) & (df_sales["client"].isin(predicted_clients))
+    ]
+
+    if recent.empty:
+        return pd.DataFrame(
+            columns=["client", "recommended_products", "avg_sale_period"]
+        )
+
+    # Frecuencia diaria por producto
+    daily_counts = (
+        recent.groupby(["client", "date_sale", "description"])
         .size()
-        .reset_index(name="cant_prod_dia")
+        .reset_index(name="qty_day")
     )
 
-    client_stats = (
-        client_daily.groupby(["client", "description"])
-        .agg(avg_sale_period=("cant_prod_dia", "median"), dias_compro=("date_sale", "count"))
+    # Estadísticas por cliente-producto
+    stats = (
+        daily_counts.groupby(["client", "description"])
+        .agg(avg_sale_period=("qty_day", "median"), dias_compro=("date_sale", "count"))
         .reset_index()
     )
-    client_stats["avg_sale_period"] = client_stats["avg_sale_period"].astype(int)
+    stats["avg_sale_period"] = stats["avg_sale_period"].astype(int)
 
-    top_products = (
-        client_stats.sort_values(["client", "dias_compro"], ascending=[True, False])
+    # Top percentile de productos por frecuencia
+    top = (
+        stats.sort_values(["client", "dias_compro"], ascending=[True, False])
         .groupby("client", group_keys=False)
-        .apply(top_pct)
+        .apply(lambda g: g.head(math.ceil(len(g) * top_percentile)))
         .reset_index(drop=True)
         .rename(columns={"description": "recommended_products"})
         .drop(columns="dias_compro")
     )
 
-    return top_products
+    return top
 
 
-
-def save_predictions(pred_df: pd.DataFrame, path: Path) -> None:
-    """Guarda dataframe de predicciones con formato estandarizado."""
-    pred_df = pred_df.copy()
-    pred_df["date"] = pred_df["date"].dt.strftime("%Y-%m-%d")
-    pred_df.sort_values(["date", "prob"], ascending=[True, False], inplace=True)
-
-    pred_df.to_csv(path, index=False, float_format="%.4f")
+# ---------------------------------------------------------------------------
+#  Guardado
+# ---------------------------------------------------------------------------
 
 
-def save_outputs(
-    preds_recom_df: pd.DataFrame,
-    preds_contact_df: pd.DataFrame,
-    output_dir: str = "predictions",
-    preds_file: str = "predictions_with_recommendations.csv",
-    contacts_file: str = "predictions_client.csv",
+def _save_outputs(
+    preds_recom: pd.DataFrame,
+    preds_contact: pd.DataFrame,
+    output_dir: Path,
+    preds_file: str,
 ) -> None:
-    """
-    Crea la carpeta de resultados (si no existe) y guarda dos archivos CSV.
-    """
-    path = Path(output_dir)
-    path.mkdir(parents=True, exist_ok=True)
+    """Guarda CSVs de predicciones + recomendaciones y contacto."""
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    save_predictions(preds_recom_df, path / preds_file)
-    preds_contact_df.to_csv(path / contacts_file, index=False)
+    df = preds_recom.copy()
+    df["date"] = df["date"].dt.strftime("%Y-%m-%d")
+    df = df.sort_values(["date", "prob"], ascending=[True, False])
+    df.to_csv(output_dir / preds_file, index=False, float_format="%.4f")
 
-    print(f"Archivos guardados en: {path.resolve()}")
+    preds_contact.to_csv(output_dir / "predictions_client.csv", index=False)
+    logger.info("Archivos guardados en: %s", output_dir.resolve())
 
+
+# ---------------------------------------------------------------------------
+#  Pipeline principal
+# ---------------------------------------------------------------------------
 
 
 def main(
@@ -229,89 +209,72 @@ def main(
     output_filename: str = "predictions_with_recommendations.csv",
     recommendation_months: int = 1,
 ) -> None:
-    """Orquesta el flujo completo de predicción + recomendaciones."""
-    # --- Config y datos base ---------------------------------------------
-    config = load_config(config_path)
-    _, calendar = load_model_and_features(config)
-    prediction_dates = process_prediction_dates(prediction_dates_str)
+    """Orquesta predicción + recomendaciones + info de contacto."""
+    cfg = load_config(config_path)
+    model = load_calibrated_model(cfg)
+    calendar = load_calendar_features(cfg)
+    dates = _parse_dates(prediction_dates_str)
 
-    eval_params = config["evaluate"]
-    threshold = threshold_override or eval_params["evaluation_threshold"]
-    print(f"Umbral de probabilidad: {threshold:.2f}")
+    threshold = threshold_override or cfg["evaluate"]["evaluation_threshold"]
+    features = cfg["train"]["features"]
+    top_pct = cfg.get("recommendation_settings", {}).get("top_product_percentile", 0.75)
+    logger.info(
+        "Umbral de probabilidad: %.2f | Top productos: %.0f%%", threshold, top_pct * 100
+    )
 
-    # --- Predicción de clientes -----------------------------------------
-    predicted_clients_df = make_predictions(config, calendar, prediction_dates, threshold)
-    if predicted_clients_df.empty:
-        print("No se encontraron clientes con alta probabilidad.")
+    # Predicción
+    preds_df = _make_predictions(model, calendar, features, dates, threshold)
+    if preds_df.empty:
+        logger.info("Sin clientes con alta probabilidad.")
         return
 
-    predicted_clients = predicted_clients_df["client"].unique()
-    customer_info_df = get_customer_info(predicted_clients)
+    predicted_clients = preds_df["client"].unique()
 
-    # --- Datos de ventas + recomendaciones ------------------------------
-    df_ventas = filter_excluded_products(load_sales_and_products_data(config), config)
+    # Info de contacto
+    customer_info = _get_customer_info(pd.Series(predicted_clients))
 
-    recommendations_df = generate_product_recommendations(
-        df_ventas, predicted_clients, recommendation_months
+    # Recomendaciones
+    sales = _load_sales_with_descriptions(cfg)
+    recs = _generate_recommendations(
+        sales,
+        pd.Series(predicted_clients),
+        top_pct,
+        recommendation_months,
     )
 
-
-    preds_contact = predicted_clients_df[["date", "client", "prob"]].merge(
-        customer_info_df[["name", "email", "phone", "telephone", "client"]], on="client"
+    # Combinar resultados
+    contact_cols = ["name", "email", "phone", "telephone", "client"]
+    available_cols = [c for c in contact_cols if c in customer_info.columns]
+    preds_contact = preds_df[["date", "client", "prob"]].merge(
+        customer_info[available_cols],
+        on="client",
     )
+    preds_with_recs = preds_contact.merge(recs, on="client", how="left")
 
-    preds_contact_recom = preds_contact.merge(
-        recommendations_df, on="client", how="left"
-    )
-
-    save_outputs(
-        preds_recom_df=preds_contact_recom,
-        preds_contact_df=preds_contact,
-        output_dir="predictions",
-        preds_file=output_filename,
-    )
+    _save_outputs(preds_with_recs, preds_contact, Path("predictions"), output_filename)
 
 
-#
-# CLI
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Predice clientes con alta probabilidad de compra y genera recomendaciones."
     )
+    parser.add_argument("--dates", required=True, nargs="+", help="Fechas YYYY-MM-DD.")
+    parser.add_argument("--config", default="params.yaml", help="Ruta a params.yaml.")
     parser.add_argument(
-        "--dates",
-        required=True,
-        nargs="+",
-        help="Fechas de predicción en formato YYYY-MM-DD (separadas por espacio).",
-    )
-    parser.add_argument(
-        "--config",
-        default="params.yaml",
-        help="Ruta al archivo de configuración YAML (default: params.yaml).",
-    )
-    parser.add_argument(
-        "--threshold",
-        type=float,
-        default=None,
-        help="Umbral de probabilidad que sobrescribe el del YAML.",
+        "--threshold", type=float, default=None, help="Umbral de probabilidad."
     )
     parser.add_argument(
         "--output",
         default="predictions_with_recommendations.csv",
-        help="Nombre del CSV principal de salida (default: predictions_with_recommendations.csv).",
+        help="CSV de salida.",
     )
     parser.add_argument(
         "--recommendation_months",
         type=int,
         default=1,
-        help="Meses hacia atrás a considerar para recomendaciones (default: 1).",
+        help="Meses para recomendaciones.",
     )
-
     args = parser.parse_args()
     main(
-        config_path=args.config,
-        prediction_dates_str=args.dates,
-        threshold_override=args.threshold,
-        output_filename=args.output,
-        recommendation_months=args.recommendation_months,
+        args.config, args.dates, args.threshold, args.output, args.recommendation_months
     )

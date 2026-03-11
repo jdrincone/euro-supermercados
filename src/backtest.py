@@ -1,141 +1,107 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-src/backtesting.py
-==================
+"""Etapa DVC ``backtest`` — compara predicciones vs compras reales día a día.
 
-Compara, día a día, las compras reales contra los clientes con
-probabilidad alta predicha por el modelo ya calibrado.
+Para cada fecha del rango configurado calcula TP, FP, FN y métricas
+(Precision, Recall, F0.5). Los resultados se guardan en CSV.
 
-Para cada fecha del rango definido en `params.yaml` calcula:
+Uso::
 
-* Verdaderos positivos (TP)  → clientes predichos **y** que compraron.
-* Falsos positivos (FP)     → predichos pero sin compra.
-* Falsos negativos (FN)     → compraron pero no predichos.
-* Métricas: Precision, Recall, F0.5.
-
-Resultados:
------------
-Se escribe un CSV con las métricas por fecha y se imprimen los promedios
-del periodo.
-
-Uso
-----
-$ python src/backtesting.py --config params.yaml
+    python src/backtest.py --config params.yaml
 """
 
 import argparse
 import logging
-import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
-import joblib
 import pandas as pd
-from dotenv import load_dotenv
 
-from utils import obtener_token, obtener_ventas, read_yaml
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# --------------------------------------------------------------------------- #
-#  Logging & dotenv
-# --------------------------------------------------------------------------- #
-load_dotenv()
+from api_client import fetch_sales, get_auth_token
+from config import load_config, reports_dir
+from data_io import load_calendar_features, load_calibrated_model
+
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
-# --------------------------------------------------------------------------- #
-#  Utilidades
-# --------------------------------------------------------------------------- #
+logger = logging.getLogger(__name__)
 
 
-def download_sales(
-    username: str,
-    password: str,
-    start: str,
-    end: str,
-) -> pd.DataFrame:
-    """Descarga ventas desde el API y las normaliza a DataFrame plano."""
-    token = obtener_token(username, password)
+# ---------------------------------------------------------------------------
+#  Helpers
+# ---------------------------------------------------------------------------
 
-    # API usa rango [start, end), por eso sumamos un día
-    end_plus_one = (datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)).strftime(
+
+def _download_and_flatten_sales(start: str, end: str) -> pd.DataFrame:
+    """Descarga ventas de la API y las aplana a un DataFrame con ``date`` y ``client``."""
+    token = get_auth_token()
+    # API usa rango [start, end), sumamos un día al final para incluir end_date
+    end_plus = (datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)).strftime(
         "%Y-%m-%d"
     )
-    raw_sales, _ = obtener_ventas(token, start, end_plus_one)
+    raw, _ = fetch_sales(token, start, end_plus)
 
-    if not raw_sales:
-        logging.warning("No se descargaron ventas del API.")
+    if not raw:
+        logger.warning("Sin ventas descargadas de la API.")
         return pd.DataFrame()
 
-    df_raw = pd.DataFrame(raw_sales)
-    df_exp = df_raw.explode("invoice_details").reset_index(drop=True)
-    df_details = pd.json_normalize(df_exp["invoice_details"])
-
-    df = pd.concat(
-        [df_exp.drop(columns="invoice_details").reset_index(drop=True), df_details],
+    df = pd.DataFrame(raw)
+    exploded = df.explode("invoice_details").reset_index(drop=True)
+    details = pd.json_normalize(exploded["invoice_details"])
+    flat = pd.concat(
+        [exploded.drop(columns="invoice_details").reset_index(drop=True), details],
         axis=1,
     )
-    df["date"] = pd.to_datetime(df["date_sale"]).dt.normalize()
-    df["client"] = df["identification_doct"].astype(str).str.strip()
-
-    logging.info("🛒 Ventas descargadas: %s filas", len(df))
-    return df
-
-
-def load_calendar_and_model(cfg: Dict[str, Any]) -> Tuple[pd.DataFrame, Any]:
-    """Carga calendario de features y modelo calibrado."""
-    processed = Path(cfg["data"]["base_path"]) / cfg["data"]["processed_folder"]
-    calendar = pd.read_parquet(processed / cfg["featurize"]["output_file"])
-    calendar["date"] = pd.to_datetime(calendar["date"]).dt.normalize()
-    calendar["client"] = calendar["client"].astype(str)
-
-    model_path = (
-        Path(cfg["model"]["model_dir"]) / cfg["model"]["calibrated_model_name"]
-    )
-    calibrator = joblib.load(model_path)
-    logging.info("📅 Calendario: %s filas | Modelo cargado de %s", len(calendar), model_path)
-    return calendar, calibrator
+    flat["date"] = pd.to_datetime(flat["date_sale"]).dt.normalize()
+    flat["client"] = flat["identification_doct"].astype(str).str.strip()
+    logger.info("Ventas descargadas: %d filas", len(flat))
+    return flat
 
 
-def predict_high_prob(
-    calendar: pd.DataFrame, calibrator, features: List[str], thr: float
+def _predict_high_prob(
+    calendar: pd.DataFrame,
+    model: Any,
+    features: list[str],
+    threshold: float,
 ) -> pd.DataFrame:
-    """Añade prob y devuelve filas con prob ≥ thr."""
-    calendar = calendar.copy()
-    calendar["prob"] = calibrator.predict_proba(calendar[features])[:, 1]
-    hp = calendar[calendar["prob"] >= thr][["date", "client", "prob"]]
-    logging.info("⭐ Clientes alta prob.: %s", len(hp))
-    return hp
+    """Predice clientes con probabilidad >= umbral."""
+    cal = calendar.copy()
+    cal["prob"] = model.predict_proba(cal[features])[:, 1]
+    high = cal[cal["prob"] >= threshold][["date", "client", "prob"]]
+    logger.info("Clientes alta probabilidad: %d", len(high))
+    return high
 
 
-def daily_metrics(
-    ventas: pd.DataFrame, preds: pd.DataFrame, dates: pd.DatetimeIndex
-) -> List[Dict[str, Any]]:
-    """Calcula TP/FP/FN y métricas para cada día."""
-    records = []
+def _daily_metrics(
+    ventas: pd.DataFrame,
+    preds: pd.DataFrame,
+    dates: pd.DatetimeIndex,
+) -> list[dict[str, Any]]:
+    """Calcula TP/FP/FN y métricas por día."""
     beta = 0.5
+    records: list[dict[str, Any]] = []
 
     for d in dates:
         d_norm = pd.to_datetime(d).normalize()
-        v_hoy = ventas[ventas["date"] == d_norm][["client"]].drop_duplicates()
-        p_hoy = preds[preds["date"] == d_norm][["client"]].drop_duplicates()
+        # Normalizar ambos lados de la comparación para evitar desalineación
+        v_day = ventas[ventas["date"].dt.normalize() == d_norm][
+            ["client"]
+        ].drop_duplicates()
+        p_day = preds[preds["date"].dt.normalize() == d_norm][
+            ["client"]
+        ].drop_duplicates()
 
-        merged = v_hoy.merge(p_hoy, on="client", how="outer", indicator=True)
-
+        merged = v_day.merge(p_day, on="client", how="outer", indicator=True)
         tp = (merged["_merge"] == "both").sum()
         fp = (merged["_merge"] == "right_only").sum()
         fn = (merged["_merge"] == "left_only").sum()
 
-        precision = tp / (tp + fp) if tp + fp else 0.0
-        recall = tp / (tp + fn) if tp + fn else 0.0
-        f05 = (
-            (1 + beta**2) * precision * recall / (beta**2 * precision + recall)
-            if precision + recall
-            else 0.0
-        )
+        prec = tp / (tp + fp) if tp + fp else 0.0
+        rec = tp / (tp + fn) if tp + fn else 0.0
+        f05 = (1 + beta**2) * prec * rec / (beta**2 * prec + rec) if prec + rec else 0.0
 
         records.append(
             {
@@ -143,10 +109,10 @@ def daily_metrics(
                 "TP": tp,
                 "FP": fp,
                 "FN": fn,
-                "Clientes_Compraron": len(v_hoy),
-                "Clientes_Predichos": len(p_hoy),
-                "Precision": precision,
-                "Recall": recall,
+                "Clientes_Compraron": len(v_day),
+                "Clientes_Predichos": len(p_day),
+                "Precision": prec,
+                "Recall": rec,
                 "F0.5-score": f05,
             }
         )
@@ -154,65 +120,71 @@ def daily_metrics(
     return records
 
 
-def save_backtest(metrics: List[Dict[str, Any]], path: Path) -> pd.DataFrame:
-    df = pd.DataFrame(metrics)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(path, index=False, float_format="%.4f")
-    logging.info("💾 Métricas guardadas en %s", path)
-    return df
+# ---------------------------------------------------------------------------
+#  Pipeline principal
+# ---------------------------------------------------------------------------
 
 
-# --------------------------------------------------------------------------- #
-# Backtesting principal
-# --------------------------------------------------------------------------- #
 def perform_backtesting(config_path: str | Path) -> None:
-    cfg = read_yaml(config_path)
+    """Ejecuta backtesting comparando predicciones con ventas reales.
 
-    # --- Rutas & params ---------------------------------------------------
-    eval_thr = cfg["evaluate"]["evaluation_threshold"]
-    start_date, end_date = cfg["backtesting"].values()
+    Las fechas se calculan dinámicamente: los últimos ``backtest_days`` días
+    anteriores a hoy. Esto garantiza que el backtesting siempre evalúe datos
+    recientes, sin importar cuándo se ejecute el pipeline.
+    """
+    cfg = load_config(config_path)
+
+    thr = cfg["evaluate"]["evaluation_threshold"]
+    bt_cfg = cfg["backtesting"]
+
+    # Fechas dinámicas: últimos N días antes de hoy
+    backtest_days = bt_cfg.get("backtest_days", 7)
+    end_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    start_date = (datetime.now() - timedelta(days=backtest_days)).strftime("%Y-%m-%d")
     dates_range = pd.date_range(start_date, end_date, freq="D")
 
-    # --- Descarga ventas --------------------------------------------------
-    sales = download_sales(
-        os.environ["API_USERNAME"], os.environ["API_PASSWORD"], start_date, end_date
-    )
+    logger.info("Backtesting dinámico: %s -> %s (%d días)", start_date, end_date, backtest_days)
+
+    # Descargar ventas reales
+    sales = _download_and_flatten_sales(start_date, end_date)
     if sales.empty:
         return
 
-    # --- Calendar & modelo -----------------------------------------------
-    calendar, model = load_calendar_and_model(cfg)
+    # Cargar calendario y modelo
+    calendar = load_calendar_features(cfg)
+    model = load_calibrated_model(cfg)
+
+    # Filtrar ventas a clientes conocidos
     sales = sales[sales["client"].isin(calendar["client"].unique())].copy()
 
-    high_prob = predict_high_prob(calendar, model, cfg["train"]["features"], eval_thr)
+    # Predicciones
+    high_prob = _predict_high_prob(calendar, model, cfg["train"]["features"], thr)
 
-    # --- Métricas día a día ----------------------------------------------
-    logging.info("⚖️  Calculando métricas diarias…")
-    metrics = daily_metrics(sales, high_prob, dates_range)
+    # Métricas día a día
+    logger.info("Calculando métricas diarias...")
+    metrics = _daily_metrics(sales, high_prob, dates_range)
 
-    # --- Guardar resultados ----------------------------------------------
-    reports_dir = Path(cfg["reports"]["reports_dir"])
-    metrics_file = reports_dir / cfg["reports"]["backtesting_metrics_file"]
+    # Guardar
+    rpt_dir = reports_dir(cfg)
+    metrics_file = rpt_dir / cfg["reports"]["backtesting_metrics_file"]
+    rpt_dir.mkdir(parents=True, exist_ok=True)
 
-    df_metrics = save_backtest(metrics, metrics_file)
-    logging.info("\n%s", df_metrics.to_string(index=False, float_format="%.4f"))
-
-    # --- Promedios periodo -----------------------------------------------
-    logging.info(
-        "🏁 Promedios | Precision %.4f | Recall %.4f | F0.5 %.4f",
+    df_metrics = pd.DataFrame(metrics)
+    df_metrics.to_csv(metrics_file, index=False, float_format="%.4f")
+    logger.info("Métricas guardadas: %s", metrics_file)
+    logger.info("\n%s", df_metrics.to_string(index=False, float_format="%.4f"))
+    logger.info(
+        "Promedios | Precision %.4f | Recall %.4f | F0.5 %.4f",
         df_metrics["Precision"].mean(),
         df_metrics["Recall"].mean(),
         df_metrics["F0.5-score"].mean(),
     )
 
 
-# --------------------------------------------------------------------------- #
-# CLI
-# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Backtesting cliente a cliente.")
-    parser.add_argument(
-        "--config", default="params.yaml", help="Ruta al YAML de configuración."
+    parser = argparse.ArgumentParser(
+        description="Backtesting de predicciones vs ventas reales."
     )
+    parser.add_argument("--config", default="params.yaml", help="Ruta a params.yaml")
     args = parser.parse_args()
     perform_backtesting(args.config)

@@ -45,8 +45,9 @@ preprocess: # Etapa DVC 'preprocess' (Para el modelo de predicción de compra)
 featurize: # Etapa DVC 'featurize' (Para el modelo de predicción de compra)
   future_days_offset: 5
   quincena_days: [28, 29, 30, 31, 1, 2, 13, 14, 15, 16]
-  recency_fillna_days: 9999
-  rolling_windows: [1, 3, 7, 15, 30]
+  recency_fillna_days: 365  # Máximo razonable: 1 año (9999 distorsionaba el scaler)
+  rolling_windows: [3, 7, 30]
+  monetary_windows: [7, 30]              # Ventanas para avg_amount y avg_skus
   output_file: calendar_features.parquet # Se guardaría en 'base_path/processed_folder/'
 
 train: # Etapa DVC 'train' (Para el modelo de predicción de compra)
@@ -58,18 +59,27 @@ train: # Etapa DVC 'train' (Para el modelo de predicción de compra)
     - is_weekend
     - is_quincena
     - days_since_last
-    - cnt_1d
     - cnt_3d
     - cnt_7d
-    - cnt_15d
     - cnt_30d
+    - avg_amount_7d
+    - avg_amount_30d
+    - avg_skus_7d
+    - avg_skus_30d
   target: purchased
+  model_type: hist_gradient_boosting  # opciones: logistic_regression, hist_gradient_boosting
   logistic_regression:
     solver: saga
     max_iter: 100
     tol: 0.001
-    C: 0.1
+    C: 1.0
     class_weight: balanced
+  hist_gradient_boosting:
+    max_iter: 200
+    max_depth: 6
+    learning_rate: 0.1
+    min_samples_leaf: 50
+    l2_regularization: 0.1
 
 model: # Parámetros relacionados al modelo de predicción DVC
   model_dir: models # Relativo a la raíz del proyecto, o base_path si se prefiere
@@ -83,12 +93,15 @@ evaluate: # Etapa DVC 'evaluate' (Para el modelo de predicción de compra)
   shap_sample_size: 1000
 
 backtesting: # Etapa DVC 'backtest' (Para el modelo de predicción de compra)
-  backtest_start_date: '2025-05-16' # Fecha actual es 2025-05-13, estas fechas son para un backtesting en el pasado.
-  backtest_end_date: '2025-05-18'
+  backtest_days: 7  # Número de días recientes a evaluar (calculados desde ayer hacia atrás)
 
 # --- Sección para el Recomendador Item-Item (Scripts Manuales) ---
 recommendations_item_item:
   num_recommendations: 5
+  excluded_product_descriptions:
+    - 'BOLSA PLASTICA'
+    - 'BOLSA RECUPERADA'
+    - 'MENU EMPLEADOS EURO'
   # Carpeta de salida para recomendaciones, relativa a 'base_path/processed_folder/'
   output_folder: recommendations
   # Carpeta para artefactos del modelo, relativa a la raíz o 'base_path'
@@ -116,23 +129,23 @@ recommendations_clustering:
 
   # --- Parámetros de Clustering ---
   # random_state_kmeans: se toma de 'base.random_state'
-  n_clusters: 3
+  n_clusters: 5         # 5 perfiles: ballena, cotidiano, mensual, hormiga, esporádico
+  k_min: 4              # rango para auto-selección (solo si n_clusters es null)
+  k_max: 7
   features_for_clustering:
-    - median_days_between
-    - std_days_between
-    - pay_amount_mean
-    - count_products
+    - tickets_per_month      # frecuencia mensual (tickets/mes)
+    - ticket_median          # valor mediano del ticket (COP)
+    - months_active_ratio    # regularidad (fracción de meses con compra)
   excluded_product_descriptions:
     - 'BOLSA PLASTICA'
     - 'BOLSA RECUPERADA'
     - 'MENU EMPLEADOS EURO'
-recommendation_settings:
-  top_product_percentile: 0.25 # Default value, you can change this
-
-
   # --- Archivos de Salida para Recomendaciones por Clustering ---
   output_folder: recommendations
   precomputed_cluster_recs_file: precomputed_cluster_recs.parquet
+
+recommendation_settings:
+  top_product_percentile: 0.75  # Fracción de productos a mantener por cliente (0.75 = top 75%)
 
 reports: # Salidas de etapas DVC 'evaluate' y 'backtest' (del modelo de predicción)
   reports_dir: reports

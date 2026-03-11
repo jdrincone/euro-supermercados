@@ -2,7 +2,7 @@
 
 stages:
   load:
-    cmd: python3 src/load_data.py --config params.yaml
+    cmd: uv run python src/load_data.py --config params.yaml
     deps:
       - src/load_data.py
       - params.yaml
@@ -11,7 +11,7 @@ stages:
           persist: true # Queremos guardar esta salida intermedia
 
   preprocess:
-    cmd: python3 src/preprocess.py --config params.yaml
+    cmd: uv run python src/preprocess.py --config params.yaml
     deps:
       - src/preprocess.py
       - data/processed/initial_sales_clean.parquet
@@ -21,7 +21,7 @@ stages:
           persist: true
 
   featurize:
-    cmd: python3 src/featurize.py --config params.yaml
+    cmd: uv run python src/featurize.py --config params.yaml
     deps:
       - src/featurize.py
       - data/processed/daily.parquet
@@ -35,7 +35,7 @@ stages:
           persist: true
 
   train:
-    cmd: python3 src/train.py --config params.yaml
+    cmd: uv run python src/train.py --config params.yaml
     deps:
       - src/train.py
       - data/processed/calendar_features.parquet
@@ -52,7 +52,7 @@ stages:
           persist: true
 
   evaluate:
-    cmd: python3 src/evaluate.py --config params.yaml
+    cmd: uv run python src/evaluate.py --config params.yaml
     deps:
       - src/evaluate.py
       - models/model.joblib
@@ -85,7 +85,7 @@ stages:
           cache: false
 
   backtest:
-    cmd: python3 src/backtest.py --config params.yaml
+    cmd: uv run python src/backtest.py --config params.yaml
     deps:
       - src/backtest.py
       - models/calibrated_model.joblib

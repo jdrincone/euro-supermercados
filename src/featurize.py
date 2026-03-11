@@ -1,74 +1,61 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-src/featurize.py
-================
+"""Etapa DVC ``featurize`` — genera calendario cliente-día con features temporales.
 
-Genera un calendario cliente-día completo y añade:
+A partir del dataset diario genera un calendario completo y añade:
 
-* Variables de fecha (dow, dom, mes, fin de semana, quincena).
-* Recencia (`days_since_last`).
-* Ventanas móviles con el conteo de compras (`cnt_7d`, `cnt_30d`, …).
+- Variables de fecha: ``dow``, ``dom``, ``month``, ``is_weekend``, ``is_quincena``.
+- Recencia: ``days_since_last`` (días desde la última compra).
+- Ventanas móviles: ``cnt_1d``, ``cnt_3d``, ``cnt_7d``, etc.
 
-El resultado se guarda como parquet y sirve de insumo para la fase de
-entrenamiento del modelo de propensión de compra.
+Uso::
 
-Uso
-----
-$ python src/featurize.py --config params.yaml
+    python src/featurize.py --config params.yaml
 """
 
 import argparse
 import logging
+import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import List
-
 
 import pandas as pd
-from utils import read_yaml
 
-# --------------------------------------------------------------------------- #
-#  Configuración global de logging
-# --------------------------------------------------------------------------- #
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from config import load_config, processed_path
+from data_io import load_parquet, save_parquet
+
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
-# --------------------------------------------------------------------------- #
-#   Utilidades
-# --------------------------------------------------------------------------- #
+logger = logging.getLogger(__name__)
 
 
-
-def load_daily(path: Path) -> pd.DataFrame:
-    df = pd.read_parquet(path)
-    logging.info("Diario cargado: %s filas", len(df))
-    return df
+# ---------------------------------------------------------------------------
+#  Feature builders
+# ---------------------------------------------------------------------------
 
 
-def build_full_calendar(daily: pd.DataFrame, max_future: int) -> pd.DataFrame:
-    """Crea MultiIndex cliente-fecha completo hasta `max_future` días en el futuro."""
+def _build_full_calendar(daily: pd.DataFrame, max_future: int) -> pd.DataFrame:
+    """Crea un MultiIndex (cliente, fecha) completo hasta ``max_future`` días después."""
     min_date, max_hist = daily["date"].min(), daily["date"].max()
     max_cal = max_hist + timedelta(days=max_future)
-
-    logging.info("Calendario: %s → %s", min_date.date(), max_cal.date())
+    logger.info("Calendario: %s -> %s", min_date.date(), max_cal.date())
 
     full_idx = pd.MultiIndex.from_product(
         [daily["client"].unique(), pd.date_range(min_date, max_cal, freq="D")],
         names=["client", "date"],
     )
-    calendar = (
+    return (
         daily.set_index(["client", "date"])
         .reindex(full_idx, fill_value=0)
         .reset_index()
     )
-    return calendar
 
 
-def add_date_features(df: pd.DataFrame, quincena_days: List[int]) -> pd.DataFrame:
-    """Agrega variables temporales sencillas."""
+def _add_date_features(df: pd.DataFrame, quincena_days: list[int]) -> pd.DataFrame:
+    """Agrega variables temporales derivadas de la fecha."""
+    df = df.copy()
     df["dow"] = df["date"].dt.dayofweek
     df["dom"] = df["date"].dt.day
     df["month"] = df["date"].dt.month
@@ -77,14 +64,25 @@ def add_date_features(df: pd.DataFrame, quincena_days: List[int]) -> pd.DataFram
     return df
 
 
-def add_recency(df: pd.DataFrame, fillna_days: int) -> pd.DataFrame:
-    """Crea `days_since_last` por cliente."""
-    df.sort_values(["client", "date"], inplace=True)
+def _add_recency(df: pd.DataFrame, fillna_days: int) -> pd.DataFrame:
+    """Crea ``days_since_last`` por cliente (días desde la última compra PREVIA).
 
-    # última compra previa
+    Usa ``shift(1)`` para evitar fuga de información: la compra del día actual
+    NO se usa para calcular la recencia de ese mismo día. Solo se consideran
+    compras de días anteriores.
+
+    Para clientes sin compras previas, se asigna ``fillna_days`` como valor
+    de recencia para indicar "nunca compró recientemente".
+    """
+    df = df.sort_values(["client", "date"]).copy()
+
+    # Marcar fechas donde hubo compra, luego shift(1) para excluir el día actual
+    buy_dates = df["date"].where(df["purchased"].eq(1))
     prev_buy = (
-        df.groupby("client", group_keys=False)["date"]
-        .apply(lambda s: s.where(df.loc[s.index, "purchased"].eq(1)).ffill())
+        buy_dates.groupby(df["client"], group_keys=False)
+        .shift(1)  # Solo compras ANTERIORES al día actual
+        .groupby(df["client"], group_keys=False)
+        .ffill()
     )
 
     min_allowed = df["date"].min() - timedelta(days=fillna_days + 1)
@@ -95,64 +93,67 @@ def add_recency(df: pd.DataFrame, fillna_days: int) -> pd.DataFrame:
     return df
 
 
-def add_rolling_counts(df: pd.DataFrame, windows: List[int]) -> pd.DataFrame:
-    """Crea columnas `cnt_<w>d` con la suma de compras ventana desplazada."""
+def _add_rolling_counts(df: pd.DataFrame, windows: list[int]) -> pd.DataFrame:
+    """Crea columnas ``cnt_<w>d`` con suma de compras en ventana desplazada.
+
+    Usa ``shift(1)`` para evitar fuga de información (lookahead bias):
+    el conteo del día actual NO se incluye en la ventana.
+    El primer día de cada cliente tiene ``min_periods=1`` → 0 por el shift.
+    """
+    df = df.copy()
     for w in windows:
-        df[f"cnt_{w}d"] = (
-            df.groupby("client")["purchased"]
-            .transform(lambda x: x.rolling(w, min_periods=1).sum().shift(1).fillna(0))
+        df[f"cnt_{w}d"] = df.groupby("client")["purchased"].transform(
+            lambda x: x.rolling(w, min_periods=1).sum().shift(1).fillna(0)
         )
     return df
 
 
-def save_calendar(df: pd.DataFrame, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(path, index=False)
-    logging.info("Calendario guardado en %s | Filas: %s", path, len(df))
+def _add_monetary_features(df: pd.DataFrame, windows: list[int]) -> pd.DataFrame:
+    """Crea features de gasto y diversidad de productos en ventanas móviles.
+
+    Usa ``shift(1)`` para evitar fuga: el gasto del día actual NO se incluye.
+    """
+    df = df.copy()
+    grouped = df.groupby("client")
+    for w in windows:
+        df[f"avg_amount_{w}d"] = grouped["amount_tot"].transform(
+            lambda x: x.rolling(w, min_periods=1).mean().shift(1).fillna(0)
+        )
+        df[f"avg_skus_{w}d"] = grouped["skus"].transform(
+            lambda x: x.rolling(w, min_periods=1).mean().shift(1).fillna(0)
+        )
+    return df
 
 
-# --------------------------------------------------------------------------- #
-# Proceso principal
-# --------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------
+#  Pipeline principal
+# ---------------------------------------------------------------------------
+
+
 def create_features(config_path: str | Path) -> None:
-    cfg = read_yaml(config_path)
+    """Construye el calendario de features y lo guarda como Parquet."""
+    cfg = load_config(config_path)
+    feat_cfg = cfg["featurize"]
+    proc = processed_path(cfg)
 
-    # --- Rutas ------------------------------------------------------------
-    data_params = cfg["data"]
-    feat_params = cfg["featurize"]
+    daily = load_parquet(proc / cfg["preprocess"]["daily_output_file"], "Diario")
 
-    processed_path = Path(data_params["base_path"]) / data_params["processed_folder"]
-    daily_in = processed_path / cfg["preprocess"]["daily_output_file"]
-    cal_out = processed_path / feat_params["output_file"]
+    calendar = _build_full_calendar(daily, feat_cfg["future_days_offset"])
+    calendar = _add_date_features(calendar, feat_cfg["quincena_days"])
+    calendar = _add_recency(calendar, feat_cfg["recency_fillna_days"])
+    calendar = _add_rolling_counts(calendar, feat_cfg["rolling_windows"])
+    calendar = _add_monetary_features(
+        calendar, feat_cfg.get("monetary_windows", [7, 30])
+    )
 
-    # --- Cargar diario ----------------------------------------------------
-    daily = load_daily(daily_in)
-
-    # --- Construir calendario completo ------------------------------------
-    calendar = build_full_calendar(daily, feat_params["future_days_offset"])
-
-    # --- Features ---------------------------------------------------------
-    calendar = add_date_features(calendar, feat_params["quincena_days"])
-    calendar = add_recency(calendar, feat_params["recency_fillna_days"])
-    calendar = add_rolling_counts(calendar, feat_params["rolling_windows"])
-
-    logging.info("Features creadas: %s", list(calendar.columns))
-
-    # --- Guardar ----------------------------------------------------------
-    save_calendar(calendar, cal_out)
+    logger.info("Features creadas: %s", list(calendar.columns))
+    save_parquet(calendar, proc / feat_cfg["output_file"], "Calendario features")
 
 
-# --------------------------------------------------------------------------- #
-#  CLI
-# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Genera calendario y características temporales para el modelo."
+        description="Genera calendario y features temporales."
     )
-    parser.add_argument(
-        "--config",
-        default="params.yaml",
-        help="Ruta al YAML de configuración (default: params.yaml)",
-    )
+    parser.add_argument("--config", default="params.yaml", help="Ruta a params.yaml")
     args = parser.parse_args()
     create_features(args.config)
