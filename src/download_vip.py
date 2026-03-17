@@ -47,7 +47,7 @@ RAW_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 CATALOG_PATH = PROCESSED_DIR / "productos.csv"
 
-MIN_WEEKS_VIP = 7  # Mínimo de semanas distintas para ser "VIP"
+MIN_WEEKS_VIP = 10  # Mínimo de semanas distintas para ser "VIP" (igual que dowload_vip.py original)
 
 
 # ---------------------------------------------------------------------------

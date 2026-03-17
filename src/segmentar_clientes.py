@@ -25,12 +25,13 @@ import logging
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from client_filters import validate_client_ids
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -45,19 +46,18 @@ FEATURE_COLS = [
     "volatilidad_gasto", "frecuencia_total", "dias_sin_comprar",
 ]
 
-# IDs genéricos que no corresponden a personas reales
-_BLACKLIST_IDS = frozenset({
-    "0", "1", "12345", "123456", "1234567", "12345678",
-    "123456789", "1234567890",
-    *(f"{d}" * n for d in range(10) for n in range(6, 11)),
-})
-
-# Nombres de los 4 segmentos
-_SEGMENT_DESCRIPTIONS = {
-    "reposicion": "Clientes de Reposición — compras frecuentes, ticket bajo (~$50k)",
-    "intermedio": "Mercado Intermedio — frecuencia media, riesgo de pérdida (~$84k)",
-    "masa_critica": "Masa Crítica — mayor volumen de clientes, foco de crecimiento (~$93k)",
-    "ballenas": "Ballenas (Minisupermercados) — ticket alto, alto valor individual (~$390k)",
+# Nombres y descripciones de los 4 segmentos VIP
+SEGMENT_NAMES = {
+    "reposicion": "Reposición",
+    "intermedio": "Mercado Intermedio",
+    "masa_critica": "Masa Crítica",
+    "ballenas": "Ballenas",
+}
+SEGMENT_DESCRIPTIONS = {
+    "reposicion": "Compras frecuentes, ticket bajo (~$50k). ~220 visitas/año.",
+    "intermedio": "Frecuencia media (~21 visitas/año), riesgo de pérdida.",
+    "masa_critica": "Mayor volumen de clientes (73%), foco de crecimiento.",
+    "ballenas": "Ticket alto (~$390k). Minisupermercados o negocios.",
 }
 
 
@@ -95,23 +95,8 @@ def cargar_datos_vip() -> pd.DataFrame:
 
 
 def limpiar_ids(df: pd.DataFrame) -> pd.DataFrame:
-    """Filtra user_ids inválidos (cédula colombiana 6-10 dígitos)."""
-    n_antes = len(df)
-    ids = df["user_id"]
-
-    mask = (
-        ids.str.fullmatch(r"\d+", na=False)
-        & ~ids.str.startswith("0", na=False)
-        & ids.str.len().between(6, 10)
-        & ~ids.isin(_BLACKLIST_IDS)
-        & ids.apply(lambda s: len(set(s)) > 1)
-    )
-
-    df = df[mask].copy()
-    n_eliminados = n_antes - len(df)
-    if n_eliminados > 0:
-        logger.info("IDs limpiados: %d filas eliminadas (%.2f%%)", n_eliminados, n_eliminados / n_antes * 100)
-    return df
+    """Filtra user_ids inválidos usando client_filters centralizado."""
+    return validate_client_ids(df, id_col="user_id")
 
 
 # ---------------------------------------------------------------------------
@@ -154,18 +139,25 @@ def asignar_clusters(features: pd.DataFrame) -> pd.DataFrame:
     masa_critica = sizes[resto].idxmax()
     intermedio = [c for c in resto if c != masa_critica][0]
 
-    nombres = {
-        reposicion: _SEGMENT_DESCRIPTIONS["reposicion"],
-        intermedio: _SEGMENT_DESCRIPTIONS["intermedio"],
-        masa_critica: _SEGMENT_DESCRIPTIONS["masa_critica"],
-        ballena: _SEGMENT_DESCRIPTIONS["ballenas"],
+    nombre_map = {
+        reposicion: SEGMENT_NAMES["reposicion"],
+        intermedio: SEGMENT_NAMES["intermedio"],
+        masa_critica: SEGMENT_NAMES["masa_critica"],
+        ballena: SEGMENT_NAMES["ballenas"],
     }
-    features["cluster_descripcion"] = features["cluster_id"].map(nombres)
+    desc_map = {
+        reposicion: SEGMENT_DESCRIPTIONS["reposicion"],
+        intermedio: SEGMENT_DESCRIPTIONS["intermedio"],
+        masa_critica: SEGMENT_DESCRIPTIONS["masa_critica"],
+        ballena: SEGMENT_DESCRIPTIONS["ballenas"],
+    }
+    features["cluster_nombre"] = features["cluster_id"].map(nombre_map)
+    features["cluster_descripcion"] = features["cluster_id"].map(desc_map)
 
-    for cid, desc in nombres.items():
+    for cid in [reposicion, intermedio, masa_critica, ballena]:
         n = (features["cluster_id"] == cid).sum()
         tp = centroids.loc[cid, "ticket_promedio"]
-        logger.info("  Cluster %d: %s — %d clientes, ticket $%.0f", cid, desc.split("—")[0].strip(), n, tp)
+        logger.info("  Cluster %d: %s — %d clientes, ticket $%.0f", cid, nombre_map[cid], n, tp)
 
     return features
 
@@ -232,7 +224,7 @@ def segmentar(sin_contacto: bool = False, output: str | None = None) -> Path:
     features = asignar_clusters(features)
 
     # Armar tabla de exportación
-    df_export = features[["cluster_id", "cluster_descripcion"]].reset_index()
+    df_export = features[["cluster_id", "cluster_nombre", "cluster_descripcion"]].reset_index()
     df_export = df_export.merge(punto_de_venta_principal(df), on="user_id", how="left")
 
     # Contacto (opcional)
@@ -246,8 +238,8 @@ def segmentar(sin_contacto: bool = False, output: str | None = None) -> Path:
 
     # Ordenar columnas
     col_order = [
-        "user_id", "cluster_id", "cluster_descripcion", "id_point_sale",
-        "name", "email", "phone", "document_type",
+        "user_id", "cluster_id", "cluster_nombre", "cluster_descripcion",
+        "id_point_sale", "name", "email", "phone", "document_type",
         "country", "department", "town", "gender",
     ]
     df_export = df_export[[c for c in col_order if c in df_export.columns]]
